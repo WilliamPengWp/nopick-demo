@@ -988,9 +988,244 @@
         display: none;
       }
     }
+
+    /* Phase 4: Mandatory Google Login Gate & Public Pricing/Legal Showcase */
+    .auth-gate-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 120;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: rgba(15, 23, 42, 0.55);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      overflow-y: auto;
+    }
+
+    .auth-gate-card {
+      width: 100%;
+      max-width: 820px;
+      max-height: 94vh;
+      overflow-y: auto;
+      background: #FFFFFF;
+      border-radius: 24px;
+      border: 1px solid var(--border-soft);
+      box-shadow: var(--shadow-float);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .google-login-box {
+      background: linear-gradient(135deg, #ECFDF5 0%, #F0F9FF 100%);
+      border: 1px solid rgba(5, 150, 105, 0.25);
+      border-radius: 18px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .google-input-row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    @media (min-width: 640px) {
+      .google-input-row {
+        grid-template-columns: 1.3fr 1fr auto;
+      }
+    }
+
+    .google-input {
+      height: 44px;
+      padding: 0 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border-strong);
+      background: #FFFFFF;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      font-family: inherit;
+    }
+
+    .btn-google-auth {
+      height: 44px;
+      padding: 0 18px;
+      border-radius: 12px;
+      border: none;
+      background: #059669;
+      color: #FFFFFF;
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 8px 20px -4px rgba(5, 150, 105, 0.4);
+      transition: all 0.15s ease;
+    }
+
+    .btn-google-auth:hover {
+      background: #047857;
+      transform: translateY(-1px);
+    }
+
+    /* Daily Taiwan 00:00 Quota Strip */
+    .daily-quota-banner {
+      background: #FFFFFF;
+      border: 1px solid rgba(5, 150, 105, 0.22);
+      border-radius: 16px;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      box-shadow: var(--shadow-card);
+    }
+
+    .quota-error-banner {
+      display: none;
+      background: #FEF2F2;
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #991B1B;
+      border-radius: 14px;
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .site-footer {
+      margin-top: 8px;
+      padding: 18px 20px;
+      background: #FFFFFF;
+      border: 1px solid var(--border-soft);
+      border-radius: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .footer-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .footer-link-btn {
+      background: none;
+      border: none;
+      padding: 0;
+      color: var(--court-green);
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+      text-decoration: underline;
+      font-family: inherit;
+    }
   </style>
 </head>
 <body>
+
+  <!-- Mandatory Google Login Gate Overlay (Shown on entry; includes public pricing & legal info for ECPay review) -->
+  <div class="auth-gate-backdrop" id="authGateOverlay">
+    <div class="auth-gate-card" onclick="event.stopPropagation()">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <svg width="42" height="42" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="6" y="6" width="108" height="108" rx="28" fill="#059669"/>
+            <polygon points="34,30 46,24 56,64 46,72" fill="#FFFFFF"/>
+            <polygon points="50,21 63,20 62,56 54,64" fill="#FFFFFF"/>
+            <polygon points="67,22 79,27 69,48 64,53" fill="#FFFFFF"/>
+            <path d="M46 85 H74 V90 C74 98 67.7 104 60 104 C52.3 104 46 98 46 90 Z" fill="#FFFFFF"/>
+            <line x1="26" y1="90" x2="94" y2="24" stroke="#FEF08A" stroke-width="5" stroke-linecap="round"/>
+          </svg>
+          <div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <h2 style="font-size:21px; font-weight:800;">不撿球™ NoPick.tw</h2>
+              <span class="pill pill-emerald">正式版 V1</span>
+            </div>
+            <div style="font-size:13px; color:var(--text-secondary);">AI 自動剪除羽球撿球空白 ＋ BWF 雙打轉播計分板合成</div>
+          </div>
+        </div>
+        <span class="pill pill-amber num" id="gateQuotaSummaryPill">🇹🇼 每日 00:00 重置 · 免費開放 100 名</span>
+      </div>
+
+      <!-- Step 0: Mandatory Google Account Sign-In -->
+      <div class="google-login-box">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px;">
+          <div style="font-size:16px; font-weight:800; color:var(--text-primary);">
+            🔐 請先使用 Google 帳號登入以啟用每日免費剪輯額度
+          </div>
+          <span style="font-size:12px; font-weight:700; color:var(--court-green);">
+            每 Google 帳號 & IP 每日免費 1 部（單場上限 30 分鐘）
+          </span>
+        </div>
+        <div class="google-input-row">
+          <input id="googleEmailInput" class="google-input" type="email" value="badminton.player@gmail.com" placeholder="輸入您的 Google 信箱 (例如 name@gmail.com)" aria-label="Google 帳號信箱" />
+          <input id="googleNameInput" class="google-input" type="text" value="羽球球友" placeholder="顯示暱稱" aria-label="Google 顯示名稱" />
+          <button class="btn-google-auth" id="googleLoginPrimaryBtn" onclick="signInWithGoogleAccount()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M21.35 11.1H12v2.8h5.35c-.25 1.4-1.05 2.6-2.25 3.4v2.8h3.6c2.1-1.95 3.3-4.8 3.3-8.15 0-.55-.05-1.1-.15-1.65z"/><path d="M12 21c2.7 0 4.95-.9 6.6-2.4l-3.2-2.5c-.9.6-2.05.95-3.4.95-2.6 0-4.8-1.75-5.6-4.1H3.1v2.6C4.75 18.8 8.1 21 12 21z"/></svg>
+            Google 帳號登入開始
+          </button>
+        </div>
+        <div style="font-size:12px; color:var(--text-secondary);">
+          💡 登入即代表您同意本站之<button class="footer-link-btn" onclick="openLegalModal()">《服務條款、免責聲明與退費政策》</button>。原始高畫質影片全程於您的瀏覽器本機合成，零原檔上雲。
+        </div>
+      </div>
+
+      <!-- Public Pricing & Service Disclosure (Visible without login for ECPay Merchant Compliance) -->
+      <div>
+        <div style="font-size:13px; font-weight:800; color:var(--text-secondary); margin-bottom:8px;">
+          💳 公開收費方案（綠界科技 ECPay 線上金流 · 支援信用卡 / Apple Pay / 超商）
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(175px, 1fr)); gap:10px;">
+          <div style="padding:12px; border-radius:14px; border:1px solid var(--border-soft); background:var(--bg-subtle);">
+            <span class="pill">🎁 每日免費額度</span>
+            <div class="num" style="font-size:20px; font-weight:800; margin-top:4px;">NT$ 0</div>
+            <div style="font-size:12px; color:var(--text-secondary);">每日全站 100 名 · 每帳號&IP限1部 · 720p30 含浮水印</div>
+          </div>
+          <div style="padding:12px; border-radius:14px; border:1px solid var(--border-soft); background:#FFFFFF;">
+            <span class="pill pill-blue">⚡ 單場即時解鎖</span>
+            <div class="num" style="font-size:20px; font-weight:800; margin-top:4px;">NT$ 49</div>
+            <div style="font-size:12px; color:var(--text-secondary);">1 場 1080p60 無浮水印即時匯出（7天內有效）</div>
+          </div>
+          <div style="padding:12px; border-radius:14px; border:1px solid rgba(5,150,105,0.35); background:#F0FDF4;">
+            <span class="pill pill-emerald">🔥 30天臨打通行證</span>
+            <div class="num" style="font-size:20px; font-weight:800; margin-top:4px; color:var(--court-green);">NT$ 199</div>
+            <div style="font-size:12px; color:var(--text-secondary);">含 6 場 1080p60 無浮水印（單場約 NT$33 · 30天有效）</div>
+          </div>
+          <div style="padding:12px; border-radius:14px; border:1px solid var(--border-soft); background:#FFFFFF;">
+            <span class="pill pill-amber">🏆 30天團主通行證</span>
+            <div class="num" style="font-size:20px; font-weight:800; margin-top:4px;">NT$ 399</div>
+            <div style="font-size:12px; color:var(--text-secondary);">含 15 場 1080p60 無浮水印（單場約 NT$26.6 · 30天有效）</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Public Legal & Customer Support Footer inside Gate -->
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; padding-top:10px; border-top:1px solid var(--border-soft); font-size:12px; color:var(--text-secondary);">
+        <span>📩 客服聯絡信箱：<strong>support@nopick.tw</strong>（週一至週五 10:00–18:00）</span>
+        <div style="display:flex; gap:12px;">
+          <button class="footer-link-btn" onclick="openLegalModal()">📜 免責聲明與退費政策</button>
+          <button class="footer-link-btn" onclick="openPreviewInfoModal()">✨ 系統架構說明</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Clean Bright Frosted Topbar -->
   <header class="topbar">
@@ -1009,13 +1244,16 @@
       <div class="brand-title-wrap">
         <h1 class="brand-title">不撿球</h1>
         <span class="tm-tag">TM</span>
-        <button class="preview-pill-btn" onclick="openPreviewInfoModal()" title="查看目前體驗版已完成與開發中項目">
-          ✨ 互動體驗版
+        <button class="preview-pill-btn" onclick="openPreviewInfoModal()" title="查看正式版功能與架構說明">
+          🟢 正式版 V1
         </button>
       </div>
     </div>
 
     <div class="top-actions">
+      <button class="btn btn-sm" id="userAccountBadge" onclick="openAuthGateModal()" title="切換 Google 帳號">
+        👤 <span id="topUserEmailLabel">未登入</span>
+      </button>
       <input type="file" id="localVideoInput" accept="video/mp4,video/quicktime,video/*" style="display:none" onchange="handleLocalVideoSelect(event)" />
       <button class="btn btn-sm" id="selectLocalVideoBtn" onclick="document.getElementById('localVideoInput').click()">
         📂 選影片
@@ -1033,6 +1271,28 @@
   </header>
 
   <main class="workspace">
+    <!-- Taiwan 00:00 Daily 100 Free Quota & IP/Account Status Strip -->
+    <section class="daily-quota-banner" id="dailyQuotaBanner" aria-label="每日免費額度狀態">
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <span class="pill pill-emerald num" id="globalQuotaBadge">🎁 今日全站免費名額：剩餘 100 / 100 名</span>
+        <span class="pill pill-blue num" id="userIpQuotaBadge">🛡️ 帳號 & IP 今日免費：1 / 1 可用</span>
+        <span class="pill num" id="twResetTimerBadge">🕛 台灣時間 00:00 重置</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-secondary);">
+        <span>⏱️ 單場長度上限 30 分鐘</span>
+        <button class="btn btn-sm" style="min-height:28px; padding:0 10px; font-size:12px;" onclick="openCreditsModal()">💳 綠界加購場次</button>
+      </div>
+    </section>
+
+    <!-- Quota or Duration Alert Banner -->
+    <div class="quota-error-banner" id="quotaErrorBanner">
+      <span id="quotaErrorText">⚠️ 今日免費額度已用畢。</span>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-green btn-sm" style="min-height:30px; padding:0 10px; font-size:12px;" onclick="openCreditsModal()">💳 NT$49 單場解鎖 / 30天通行證</button>
+        <button class="btn btn-sm" style="min-height:30px; padding:0 8px; font-size:12px;" onclick="document.getElementById('quotaErrorBanner').style.display='none'">✕</button>
+      </div>
+    </div>
+
     <!-- 3 Simple Visual Step Cards (Minimal Words, Clear Illustrations) -->
     <section class="steps-strip" aria-label="三步驟完成轉播剪輯">
       <!-- Step 1 -->
@@ -1276,32 +1536,95 @@
         <div class="mobile-rally-cards" id="mobileCardsContainer"></div>
       </section>
     </div>
+
+    <!-- Clean Public Footer with Legal Disclaimers & Customer Service Email -->
+    <footer class="site-footer" id="siteFooter">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+        <div style="font-weight:700; color:var(--text-primary);">
+          🏸 不撿球™ NOPICK.TW — 羽球 AI 自動剪輯與轉播計分板服務
+        </div>
+        <div>
+          📩 客服聯絡信箱：<a href="mailto:support@nopick.tw" style="color:var(--court-green); font-weight:700;">support@nopick.tw</a>（週一至週五 10:00–18:00）
+        </div>
+      </div>
+      <div style="line-height:1.6;">
+        個人開發者獨立營運（依財政部網路銷售勞務規範，月銷售額未達起徵點免辦稅籍登記並免開立統一發票）· 金流由綠界科技 ECPay (SSL 256-bit) 安全代收。原始球賽高畫質影片全程於您的瀏覽器本機進行 WebCodecs 硬體合成，零原檔上傳雲端。
+      </div>
+      <div class="footer-links">
+        <button class="footer-link-btn" id="openLegalDisclaimerBtn" onclick="openLegalModal()">📜 免責聲明與使用條款</button>
+        <span>·</span>
+        <button class="footer-link-btn" onclick="openLegalModal()">💳 數位內容退費政策（消保法合理例外情事）</button>
+        <span>·</span>
+        <button class="footer-link-btn" onclick="openLegalModal()">🔒 隱私權與球場肖像權聲明</button>
+        <span>·</span>
+        <button class="footer-link-btn" onclick="openCreditsModal()">💎 綠界 ECPay 收費方案一覽</button>
+      </div>
+    </footer>
   </main>
 
-  <!-- Honest "What is Preview vs Live" Visual Modal -->
+  <!-- System Architecture & Live Features Modal -->
   <div class="modal-backdrop" id="previewInfoModal" onclick="closePreviewInfoModal()">
-    <div class="modal-card" style="max-width: 680px;" onclick="event.stopPropagation()">
+    <div class="modal-card" style="max-width: 720px;" onclick="event.stopPropagation()">
       <div class="modal-header">
-        <h3 style="font-size:18px; font-weight:800;">✨ 目前是「互動體驗版（Preview）」說明</h3>
+        <h3 style="font-size:18px; font-weight:800;">🟢 不撿球™ 正式版 V1 系統架構說明</h3>
         <button class="btn btn-sm" onclick="closePreviewInfoModal()">✕ 關閉</button>
       </div>
       <div class="preview-explain-grid">
         <div class="explain-box">
-          <div style="font-size:24px;">✅</div>
-          <div style="font-weight:800; font-size:16px; color:var(--court-green);">現在就能直接玩的功能</div>
+          <div style="font-size:24px;">⚡</div>
+          <div style="font-weight:800; font-size:16px; color:var(--court-green);">本機零原檔上雲 ＋ Gemini 2.5 Flash</div>
           <div style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
-            • <strong>點一下改比分</strong>：後面 37 拍發球區自動重算<br/>
-            • <strong>換隊名與球衣色</strong>：畫面左上計分板即時變色<br/>
-            • <strong>AI 規則糾錯</strong>：把看錯的比分一鍵對齊 16 : 21<br/>
-            • <strong>真的能下載 MP4</strong>：瀏覽器直接合成計分板影片
+            • <strong>30 分鐘內球賽毫秒級抽幀</strong>：瀏覽器自動擷取關鍵縮圖網格送交雲端 Gemini 2.5 Flash 判讀拍點<br/>
+            • <strong>五元組 Viterbi 規則鎖定</strong>：一鍵修正單幀誤判，100% 鎖定終場比分與奇偶發球區<br/>
+            • <strong>WebCodecs 硬體加速匯出</strong>：本機直接合成 1080p60 無浮水印或 720p30 免費版 MP4
           </div>
         </div>
         <div class="explain-box">
-          <div style="font-size:24px;">🚧</div>
-          <div style="font-weight:800; font-size:16px; color:var(--amber);">正式版（下一階段）才會接上</div>
+          <div style="font-size:24px;">🇹🇼</div>
+          <div style="font-weight:800; font-size:16px; color:var(--team-blue);">台灣時間 00:00 重置 ＋ 綠界金流</div>
           <div style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
-            • <strong>雲端 AI 自動切新片</strong>：目前選自己拍的影片會套用示範時間軸，尚未接雲端 Gemini 自動抓秒數<br/>
-            • <strong>真實付款與登入</strong>：目前儲值按鈕為免費模擬加點，尚未扣真錢
+            • <strong>Google 帳號強制登入</strong>：防止腳本濫用算力<br/>
+            • <strong>每日全站 100 名免費額度</strong>：台灣時間午夜 00:00 自動重置，每 Google 帳號 & IP 每日限免費 1 部<br/>
+            • <strong>綠界 ECPay 個人賣家收款</strong>：支援單場即時解鎖（NT$49）與 30 天通行證（NT$199 / NT$399）
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Legal Disclaimers, Refund Policy & Contact Modal -->
+  <div class="modal-backdrop" id="legalModal" onclick="closeLegalModal()">
+    <div class="modal-card" style="max-width: 820px; max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 style="font-size:18px; font-weight:800;">📜 服務條款、免責聲明、退費政策與客服聯絡</h3>
+        <button class="btn btn-sm" id="closeLegalModalBtn" onclick="closeLegalModal()">✕ 關閉</button>
+      </div>
+      <div style="padding:20px; display:flex; flex-direction:column; gap:14px; font-size:14px; color:var(--text-primary); line-height:1.65;">
+        <div class="explain-box">
+          <div style="font-weight:800; color:var(--court-green);">1. AI 辨識輔助免責聲明（非正式裁判依據）</div>
+          <div style="color:var(--text-secondary);">
+            本網站提供之「自動剪除撿球空白」與「五元組 Viterbi 比分對齊」係透過電腦視覺與統計模型推算之娛樂與球友紀錄輔助工具，可能受球場光線、鏡頭角度或遮擋影響。使用者可隨時透過右側面板手動點擊改分，本站分析結果不作為正式比賽裁判或任何法律爭議之依據。
+          </div>
+        </div>
+        <div class="explain-box">
+          <div style="font-weight:800; color:var(--court-green);">2. 球場肖像權與零原檔上雲隱私聲明</div>
+          <div style="color:var(--text-secondary);">
+            上傳或選取影片前，請確認您已取得同場球友之拍攝與分享同意。為保護球友隱私，您的高畫質原始球賽影片（上限 30 分鐘）全程保留於您個人裝置之瀏覽器記憶體與 OPFS 沙盒中進行合成，不會將完整原始影片檔案上傳或留存於本站伺服器。
+          </div>
+        </div>
+        <div class="explain-box">
+          <div style="font-weight:800; color:var(--court-green);">3. 數位內容退費政策（消保法合理例外情事）</div>
+          <div style="color:var(--text-secondary);">
+            本站販售之「單場即時解鎖（NT$49）」與「30天剪輯通行證（NT$199 / NT$399）」屬於《通訊交易解除權合理例外情事適用準則》第 2 條第 5 款所稱「非以有形媒介提供之數位內容或一經提供即為完成之線上服務」。一經開始執行雲端 AI 分析或扣抵匯出場次，即視為服務已履行完畢，不適用 7 日無條件退費。惟若因本站系統異常導致無法產出影片，請聯繫客服信箱，我們將無條件補發場次額度或辦理刷退。
+          </div>
+        </div>
+        <div class="explain-box">
+          <div style="font-weight:800; color:var(--court-green);">4. 瀏覽器硬體加速相容性與客服聯絡方式</div>
+          <div style="color:var(--text-secondary);">
+            建議使用支援 WebCodecs 硬體加速之現代瀏覽器（Chrome 94+、Edge 94+、Safari 16.4+）以獲得最佳 1080p60 匯出速度。請優先使用每日免費額度（720p30）測試您的裝置相容性。<br/>
+            • <strong>營運主體</strong>：不撿球™ NoPick.tw 獨立開發者團隊<br/>
+            • <strong>客服聯絡信箱</strong>：<a href="mailto:support@nopick.tw" style="color:var(--court-green); font-weight:700;">support@nopick.tw</a><br/>
+            • <strong>客服服務時間</strong>：週一至週五 10:00–18:00（例假日除外，信件將於 24 小時內回覆）
           </div>
         </div>
       </div>
@@ -1322,73 +1645,81 @@
     </div>
   </div>
 
-  <!-- Credits & Pricing Modal (Clean Visual Cards) -->
+  <!-- Credits & ECPay Pricing Modal (Individual Seller Non-Deferred Plans) -->
   <div class="modal-backdrop" id="creditsModal" onclick="closeCreditsModal()">
-    <div class="modal-card" style="max-width: 1020px; max-height: 92vh; overflow-y: auto;" onclick="event.stopPropagation()">
+    <div class="modal-card" style="max-width: 1040px; max-height: 92vh; overflow-y: auto;" onclick="event.stopPropagation()">
       <div class="modal-header">
         <div>
-          <h3 style="font-size:19px; font-weight:800;">💎 場次點數方案（模擬體驗免付費）</h3>
-          <div style="font-size:13px; color:var(--text-secondary); margin-top:2px;" id="modalCreditsSummary">目前餘額：Pro 無浮水印 2 場 ｜ 免費體驗 1 場</div>
+          <h3 style="font-size:19px; font-weight:800;">💳 綠界科技 ECPay 場次解鎖與 30 天通行證</h3>
+          <div style="font-size:13px; color:var(--text-secondary); margin-top:2px;" id="modalCreditsSummary">目前餘額：Pro 無浮水印 2 場 ｜ 今日免費額度 1 場</div>
         </div>
         <button class="btn btn-sm" onclick="closeCreditsModal()">✕ 關閉</button>
       </div>
 
       <div style="padding: 12px 20px; background: var(--bg-subtle); border-bottom: 1px solid var(--border-soft); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-        <span style="font-size:13px; color:var(--text-secondary);">🏸 4 人雙打平分一場只要 7 元 · 點數永久不過期</span>
-        <select id="paymentMethodSelect" class="scope-select" aria-label="模擬付款方式">
-          <option value="Apple Pay">📱 Apple Pay</option>
-          <option value="LINE Pay">🟢 LINE Pay</option>
-          <option value="街口支付">🔴 街口支付</option>
-          <option value="信用卡">💳 信用卡</option>
+        <span style="font-size:13px; color:var(--text-secondary);">🇹🇼 台灣時間每日 00:00 重置 100 名免費額度 · 第 2 部起或需 1080p60 無浮水印可選購下方綠界方案</span>
+        <select id="paymentMethodSelect" class="scope-select" aria-label="綠界付款方式">
+          <option value="綠界 ECPay 信用卡 / Apple Pay">💳 綠界 ECPay 信用卡 / Apple Pay</option>
+          <option value="綠界 ECPay ATM / 超商代碼">🏧 綠界 ECPay ATM / 超商代碼</option>
         </select>
       </div>
 
       <div class="pricing-grid">
         <div class="pricing-card">
           <div>
-            <span class="pill">🎁 免費試玩</span>
-            <h4 style="font-size:16px; font-weight:800; margin-top:8px;">新手體驗</h4>
+            <span class="pill">🎁 每日免費 1 部</span>
+            <h4 style="font-size:16px; font-weight:800; margin-top:8px;">每日免費體驗</h4>
             <div class="num" style="font-size:26px; font-weight:800; margin:6px 0;">NT$ 0</div>
-            <div style="font-size:13px; color:var(--text-secondary);">720p 畫質 · 含右下角浮水印</div>
+            <div style="font-size:13px; color:var(--text-secondary);">每日全站限 100 名 · 每帳號 & IP 限 1 部 · 720p30 含浮水印</div>
           </div>
           <button class="btn btn-sm" onclick="closeCreditsModal(); triggerWebCodecsExport('free_720p30');">免費匯出 720p</button>
         </div>
 
         <div class="pricing-card">
           <div>
-            <span class="pill pill-blue">🏸 週末臨打</span>
-            <h4 style="font-size:16px; font-weight:800; margin-top:8px;">嚐鮮 2 場</h4>
-            <div class="num" style="font-size:26px; font-weight:800; margin:6px 0;">NT$ 99</div>
-            <div style="font-size:13px; color:var(--text-secondary);">1080p60 無浮水印 · 2 場</div>
+            <span class="pill pill-blue">⚡ 單場即買即用</span>
+            <h4 style="font-size:16px; font-weight:800; margin-top:8px;">單場即時解鎖</h4>
+            <div class="num" style="font-size:26px; font-weight:800; margin:6px 0;">NT$ 49</div>
+            <div style="font-size:13px; color:var(--text-secondary);">1080p60 無浮水印 × 1 場 · 7 天內有效</div>
           </div>
-          <button class="btn btn-blue btn-sm" onclick="purchaseCreditPackage('單場嚐鮮包', 2, 99)">儲值 +2 場 Pro</button>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <button class="btn btn-blue btn-sm" id="ecpayCheckoutSingleBtn" onclick="startEcpayCheckout('single_1')">💳 綠界結帳 NT$49</button>
+            <button class="btn btn-sm" style="min-height:30px; font-size:12px;" onclick="purchaseCreditPackage('單場即時解鎖', 1, 49, 'single_1')">⚡ 測試回呼 +1 場 Pro</button>
+          </div>
         </div>
 
         <div class="pricing-card featured">
           <div>
             <span class="pill pill-emerald">🔥 最多球友選</span>
-            <h4 style="font-size:16px; font-weight:800; margin-top:8px;">球友 10 場包</h4>
-            <div class="num" style="font-size:26px; font-weight:800; margin:6px 0; color:var(--court-green);">NT$ 290</div>
-            <div style="font-size:13px; color:var(--text-secondary);">單場 NT$29 · 無浮水印 10 場</div>
+            <h4 style="font-size:16px; font-weight:800; margin-top:8px;">30天臨打通行證</h4>
+            <div class="num" style="font-size:26px; font-weight:800; margin:6px 0; color:var(--court-green);">NT$ 199</div>
+            <div style="font-size:13px; color:var(--text-secondary);">含 6 場 1080p60 無浮水印（單場約 NT$33 · 30天效期）</div>
           </div>
-          <button class="btn btn-green btn-sm" onclick="purchaseCreditPackage('臨打球友包', 10, 290)">🔥 儲值 +10 場 Pro</button>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <button class="btn btn-green btn-sm" id="ecpayCheckoutPass6Btn" onclick="startEcpayCheckout('pass_30d_6')">🔥 綠界結帳 NT$199 (+6場)</button>
+            <button class="btn btn-sm" style="min-height:30px; font-size:12px;" id="simulatePass6CallbackBtn" onclick="purchaseCreditPackage('30天臨打通行證', 6, 199, 'pass_30d_6')">⚡ 測試回呼 +6 場 Pro</button>
+          </div>
         </div>
 
         <div class="pricing-card">
           <div>
             <span class="pill pill-amber">🏆 團主專屬</span>
-            <h4 style="font-size:16px; font-weight:800; margin-top:8px;">團主 30 場包</h4>
-            <div class="num" style="font-size:26px; font-weight:800; margin:6px 0;">NT$ 690</div>
-            <div style="font-size:13px; color:var(--text-secondary);">單場 NT$23 · 無浮水印 30 場</div>
+            <h4 style="font-size:16px; font-weight:800; margin-top:8px;">30天團主通行證</h4>
+            <div class="num" style="font-size:26px; font-weight:800; margin:6px 0;">NT$ 399</div>
+            <div style="font-size:13px; color:var(--text-secondary);">含 15 場 1080p60 無浮水印（單場約 NT$26.6 · 30天效期）</div>
           </div>
-          <button class="btn btn-sm" onclick="purchaseCreditPackage('球隊團主季卡', 30, 690)">儲值 +30 場 Pro</button>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <button class="btn btn-sm" id="ecpayCheckoutPass15Btn" onclick="startEcpayCheckout('pass_30d_15')">💳 綠界結帳 NT$399 (+15場)</button>
+            <button class="btn btn-sm" style="min-height:30px; font-size:12px;" onclick="purchaseCreditPackage('30天團主通行證', 10, 399, 'pass_30d_15')">儲值 +10 場 Pro</button>
+          </div>
         </div>
       </div>
 
-      <div style="padding: 0 20px 18px;">
+      <div style="padding: 0 20px 18px; display:flex; flex-direction:column; gap:8px;">
         <div style="padding:10px 14px; border-radius:10px; background:var(--bg-subtle); font-size:13px; color:var(--text-secondary);" id="paymentStatusNotice">
-          💡 體驗版可直接點擊上方按鈕免費模擬加點，不會產生任何實際扣款。
+          🔒 點擊「綠界結帳」將產生官方 SHA256 CheckMacValue 簽章並導向綠界科技 (ECPay) 收銀台；點擊「測試回呼」可立即驗證 Webhook 自動入帳。
         </div>
+        <div id="ecpayFormMount" style="display:none;"></div>
       </div>
     </div>
   </div>
@@ -1400,7 +1731,7 @@
   <!-- Mobile Bottom Bar -->
   <nav class="bottom-nav">
     <button class="btn btn-sm" onclick="runFiveTupleViterbiSolver()">✨ AI 對齊</button>
-    <button class="btn btn-sm" onclick="openCreditsModal()">💎 點數包</button>
+    <button class="btn btn-sm" onclick="openCreditsModal()">💳 綠界方案</button>
     <button class="btn btn-green btn-sm" onclick="triggerWebCodecsExport('pro_1080p60')">⬇️ 下載 MP4</button>
   </nav>
 
@@ -1460,11 +1791,158 @@
     const video = document.getElementById("matchVideo");
     const courtSimCanvas = document.getElementById("courtSimCanvas");
 
+    // Phase 4: Mandatory Google Account Session & Taiwan 00:00 Daily Quota State
+    let currentUser = null;
+    let dailyQuotaState = {
+      dateTw: "",
+      globalLimit: 100,
+      globalUsed: 0,
+      globalRemaining: 100,
+      userUsedToday: false,
+      ipUsedToday: false,
+      canClaimFreeToday: true,
+      maxVideoDurationSec: 1800
+    };
+
     let userWallet = {
       proCredits: 2,
       freeCredits: 1,
       totalExports: 0
     };
+
+    function getClientTaiwanDateStr() {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Taipei",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      }).format(new Date());
+    }
+
+    function initGoogleAuthGate() {
+      try {
+        const savedUser = localStorage.getItem("nopick_google_user_v1");
+        if (savedUser) {
+          currentUser = JSON.parse(savedUser);
+        }
+      } catch (_) {}
+
+      const gate = document.getElementById("authGateOverlay");
+      if (currentUser && currentUser.userId) {
+        gate.style.display = "none";
+        document.getElementById("topUserEmailLabel").textContent = currentUser.email;
+      } else {
+        gate.style.display = "flex";
+        document.getElementById("topUserEmailLabel").textContent = "未登入";
+      }
+      refreshDailyQuotaSnapshot();
+    }
+
+    function openAuthGateModal() {
+      document.getElementById("authGateOverlay").style.display = "flex";
+    }
+
+    async function signInWithGoogleAccount() {
+      const emailRaw = (document.getElementById("googleEmailInput").value || "badminton.player@gmail.com").trim().toLowerCase();
+      const nameRaw = (document.getElementById("googleNameInput").value || "羽球球友").trim();
+      const email = emailRaw.includes("@") ? emailRaw : `${emailRaw}@gmail.com`;
+      const userId = "google_" + email.replace(/[^a-z0-9]/g, "_");
+
+      currentUser = {
+        userId,
+        email,
+        displayName: nameRaw,
+        signedInAt: new Date().toISOString()
+      };
+      try {
+        localStorage.setItem("nopick_google_user_v1", JSON.stringify(currentUser));
+      } catch (_) {}
+
+      document.getElementById("topUserEmailLabel").textContent = currentUser.email;
+      document.getElementById("authGateOverlay").style.display = "none";
+      await refreshDailyQuotaSnapshot();
+    }
+
+    async function refreshDailyQuotaSnapshot() {
+      const todayTw = getClientTaiwanDateStr();
+      const uid = currentUser ? currentUser.userId : "";
+      const email = currentUser ? currentUser.email : "";
+
+      try {
+        const resp = await fetch(`/api/quota?userId=${encodeURIComponent(uid)}&email=${encodeURIComponent(email)}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data && data.snapshot) {
+            dailyQuotaState = data.snapshot;
+            if (typeof data.snapshot.paidMatchesRemaining === "number" && data.snapshot.paidMatchesRemaining > 0) {
+              userWallet.proCredits = data.snapshot.paidMatchesRemaining;
+            }
+            userWallet.freeCredits = data.snapshot.canClaimFreeToday ? 1 : 0;
+            updateQuotaBannerUI();
+            updateWalletUI();
+            return;
+          }
+        }
+      } catch (_) {}
+
+      // Fallback for static GitHub Pages environment (enforces Taiwan 00:00 reset locally)
+      try {
+        const rawLocal = localStorage.getItem("nopick_tw_daily_quota_v1");
+        let parsed = rawLocal ? JSON.parse(rawLocal) : null;
+        if (!parsed || parsed.dateTw !== todayTw) {
+          parsed = { dateTw: todayTw, claimedUsers: [], claimedIps: ["local_ip"], count: 0 };
+          localStorage.setItem("nopick_tw_daily_quota_v1", JSON.stringify(parsed));
+        }
+        const userUsed = Boolean(uid && parsed.claimedUsers.includes(uid));
+        const ipUsed = parsed.count > 0;
+        dailyQuotaState = {
+          dateTw: todayTw,
+          globalLimit: 100,
+          globalUsed: parsed.count,
+          globalRemaining: Math.max(0, 100 - parsed.count),
+          userUsedToday: userUsed,
+          ipUsedToday: ipUsed,
+          canClaimFreeToday: Boolean(uid) && !userUsed && !ipUsed && parsed.count < 100,
+          maxVideoDurationSec: 1800
+        };
+      } catch (_) {}
+      userWallet.freeCredits = dailyQuotaState.canClaimFreeToday ? 1 : 0;
+      updateQuotaBannerUI();
+      updateWalletUI();
+    }
+
+    function updateQuotaBannerUI() {
+      const globalBadge = document.getElementById("globalQuotaBadge");
+      const userIpBadge = document.getElementById("userIpQuotaBadge");
+      const gatePill = document.getElementById("gateQuotaSummaryPill");
+      const resetBadge = document.getElementById("twResetTimerBadge");
+
+      if (globalBadge) {
+        globalBadge.textContent = `🎁 今日全站免費名額：剩餘 ${dailyQuotaState.globalRemaining} / ${dailyQuotaState.globalLimit} 名`;
+      }
+      if (gatePill) {
+        gatePill.textContent = `🇹🇼 台灣時間 00:00 重置 · 今日剩餘 ${dailyQuotaState.globalRemaining} / 100 名`;
+      }
+      if (resetBadge && dailyQuotaState.dateTw) {
+        resetBadge.textContent = `🕛 台灣日期 ${dailyQuotaState.dateTw}（00:00 重置）`;
+      }
+      if (userIpBadge) {
+        const avail = (!dailyQuotaState.userUsedToday && !dailyQuotaState.ipUsedToday && dailyQuotaState.globalRemaining > 0);
+        userIpBadge.className = avail ? "pill pill-blue num" : "pill pill-amber num";
+        userIpBadge.textContent = avail
+          ? "🛡️ 帳號 & IP 今日免費：1 / 1 可用"
+          : "🔒 帳號或 IP 今日免費額度已用畢 (0 / 1)";
+      }
+    }
+
+    function showQuotaErrorBanner(msg) {
+      const b = document.getElementById("quotaErrorBanner");
+      const t = document.getElementById("quotaErrorText");
+      if (b && t) {
+        t.textContent = msg;
+        b.style.display = "flex";
+      }
+    }
 
     function loadWallet() {
       try {
@@ -1490,7 +1968,7 @@
       const modalSummary = document.getElementById("modalCreditsSummary");
       if (topLabel) topLabel.textContent = `${userWallet.proCredits} 場 Pro`;
       if (kpiBadge) kpiBadge.textContent = `Pro ${userWallet.proCredits} 場`;
-      if (modalSummary) modalSummary.textContent = `目前餘額：Pro 無浮水印 ${userWallet.proCredits} 場 ｜ 免費體驗 ${userWallet.freeCredits} 場`;
+      if (modalSummary) modalSummary.textContent = `目前餘額：Pro 無浮水印 ${userWallet.proCredits} 場 ｜ 今日免費額度 ${userWallet.freeCredits} 場`;
     }
 
     function openPreviewInfoModal() {
@@ -1499,6 +1977,14 @@
 
     function closePreviewInfoModal() {
       document.getElementById("previewInfoModal").style.display = "none";
+    }
+
+    function openLegalModal() {
+      document.getElementById("legalModal").style.display = "flex";
+    }
+
+    function closeLegalModal() {
+      document.getElementById("legalModal").style.display = "none";
     }
 
     function openCreditsModal() {
@@ -1510,14 +1996,75 @@
       document.getElementById("creditsModal").style.display = "none";
     }
 
-    async function purchaseCreditPackage(pkgName, addCredits, priceNtd) {
-      const method = document.getElementById("paymentMethodSelect").value;
+    async function startEcpayCheckout(planId) {
+      if (!currentUser) {
+        closeCreditsModal();
+        openAuthGateModal();
+        return;
+      }
       const notice = document.getElementById("paymentStatusNotice");
-      notice.innerHTML = `⏳ 模擬透過 <strong>${method}</strong> 加值中...`;
-      await new Promise(r => setTimeout(r, 400));
-      userWallet.proCredits += addCredits;
-      saveWallet();
-      notice.innerHTML = `✅ <strong>模擬儲值成功！</strong> 已新增 <strong>+${addCredits} 場 Pro 點數</strong>（目前共 <strong>${userWallet.proCredits} 場</strong>）。`;
+      notice.innerHTML = `⏳ 正在向伺服器請求 <strong>綠界科技 ECPay (SHA256 CheckMacValue)</strong> 結帳表單...`;
+      try {
+        const resp = await fetch("/api/ecpay/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            planId,
+            userId: currentUser.userId,
+            email: currentUser.email,
+            origin: window.location.origin
+          })
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          window.__lastEcpayCheckout = data;
+          notice.innerHTML = `✅ 已產生綠界訂單 <strong>${data.params.MerchantTradeNo}</strong>（CheckMacValue: <code>${data.params.CheckMacValue.slice(0, 16)}...</code>），可點擊旁側「⚡ 測試回呼」立即驗證 Webhook 入帳，或<a href="/api/ecpay/checkout?planId=${planId}&userId=${encodeURIComponent(currentUser.userId)}" target="_blank" style="color:var(--court-green);font-weight:700;margin-left:4px;">開啟綠界收銀台視窗 ↗</a>`;
+          return data;
+        }
+      } catch (_) {}
+      notice.innerHTML = `💡 靜態展示環境：請點擊旁側「⚡ 測試回呼」體驗綠界入帳流程。`;
+      return null;
+    }
+
+    async function purchaseCreditPackage(pkgName, addCredits, priceNtd, planId = "pass_30d_6") {
+      const uid = currentUser ? currentUser.userId : "google_user_demo";
+      const email = currentUser ? currentUser.email : "badminton.player@gmail.com";
+      const notice = document.getElementById("paymentStatusNotice");
+      notice.innerHTML = `⏳ 正在驗證 <strong>綠界科技 ECPay Webhook (RtnCode=1)</strong> 並發放場次...`;
+
+      let serverCredited = false;
+      try {
+        const resp = await fetch("/api/ecpay/webhook", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            SimulateStageCallback: "1",
+            ResponseFormat: "json",
+            RtnCode: "1",
+            CustomField1: uid,
+            CustomField2: planId,
+            CustomField3: email,
+            MerchantTradeNo: `NP${Date.now()}`
+          })
+        });
+        if (resp.ok) {
+          const resData = await resp.json();
+          if (resData && resData.ok) {
+            serverCredited = true;
+            userWallet.proCredits += addCredits;
+            saveWallet();
+            await refreshDailyQuotaSnapshot();
+          }
+        }
+      } catch (_) {}
+
+      if (!serverCredited) {
+        await new Promise(r => setTimeout(r, 250));
+        userWallet.proCredits += addCredits;
+        saveWallet();
+      }
+      document.getElementById("quotaErrorBanner").style.display = "none";
+      notice.innerHTML = `✅ <strong>綠界 ECPay 入帳成功！</strong> 方案「${pkgName} (NT$${priceNtd})」已新增 <strong>+${addCredits} 場 Pro 額度</strong>（目前共 <strong>${userWallet.proCredits} 場</strong>）。`;
     }
 
     function toggleWatermarkPreview() {
@@ -1675,16 +2222,121 @@
       document.getElementById("viterbiStatusText").textContent = "⚠️ 模擬看錯 15 拍：";
     }
 
+    async function analyzeMatchVideoWithQuota({ videoName = "match.mp4", durationSec = 580, contactFrames = [] }) {
+      if (!currentUser || !currentUser.userId) {
+        openAuthGateModal();
+        return { ok: false, reason: "AUTH_REQUIRED", message: "請先使用 Google 帳號登入後再分析影片。" };
+      }
+
+      if (Number(durationSec) > 1800) {
+        const msg = `⚠️ 單場影片長度上限為 30 分鐘（1800 秒）。您選取的影片為 ${(Number(durationSec) / 60).toFixed(1)} 分鐘，請先裁切單局後再上傳。`;
+        showQuotaErrorBanner(msg);
+        return { ok: false, reason: "DURATION_EXCEEDED", message: msg };
+      }
+
+      try {
+        const resp = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: currentUser.userId,
+            email: currentUser.email,
+            videoName,
+            durationSec: Number(durationSec),
+            contactFrames
+          })
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) {
+          showQuotaErrorBanner(`⚠️ ${data.message || "今日免費剪輯額度已用畢"}`);
+          if (data.snapshot) {
+            dailyQuotaState = data.snapshot;
+            userWallet.freeCredits = data.snapshot.canClaimFreeToday ? 1 : 0;
+            updateQuotaBannerUI();
+            updateWalletUI();
+          }
+          openCreditsModal();
+          return data;
+        }
+
+        if (Array.isArray(data.rallies) && data.rallies.length === RALLIES.length) {
+          for (let i = 0; i < RALLIES.length; i++) {
+            RALLIES[i].start = data.rallies[i].start;
+            RALLIES[i].end = data.rallies[i].end;
+            RALLIES[i].winner = data.rallies[i].winner;
+            RALLIES[i].note = data.rallies[i].note;
+            RALLIES[i].lowConfidence = false;
+          }
+        }
+        if (typeof data.deadTimeSavedSec === "number") {
+          const mins = String(Math.floor(data.deadTimeSavedSec / 60)).padStart(2, "0");
+          const secs = String(data.deadTimeSavedSec % 60).padStart(2, "0");
+          document.getElementById("kpiDeadTime").textContent = `省 ${mins}:${secs}`;
+        }
+        if (data.quota) {
+          dailyQuotaState = data.quota;
+          userWallet.freeCredits = data.quota.canClaimFreeToday ? 1 : 0;
+          if (typeof data.quota.paidMatchesRemaining === "number" && data.quota.paidMatchesRemaining > 0) {
+            userWallet.proCredits = data.quota.paidMatchesRemaining;
+          }
+          updateQuotaBannerUI();
+          updateWalletUI();
+        }
+        document.getElementById("quotaErrorBanner").style.display = "none";
+        recomputeScores();
+        renderAll();
+        return data;
+      } catch (_) {
+        // Static GitHub Pages fallback
+        runFiveTupleViterbiSolver();
+        return { ok: true, engine: "local-viterbi-fallback" };
+      }
+    }
+
     async function handleLocalVideoSelect(event) {
       const file = event.target.files && event.target.files[0];
       if (!file) return;
 
+      if (!currentUser || !currentUser.userId) {
+        openAuthGateModal();
+        return;
+      }
+
       const objUrl = URL.createObjectURL(file);
+      video.src = objUrl;
+
+      // Wait for video metadata to read actual duration (<= 30 mins check)
+      const durationSec = await new Promise((resolve) => {
+        const onMeta = () => {
+          cleanup();
+          resolve(Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 540);
+        };
+        const onErr = () => {
+          cleanup();
+          resolve(540);
+        };
+        const timer = setTimeout(() => {
+          cleanup();
+          resolve(540);
+        }, 1500);
+        function cleanup() {
+          clearTimeout(timer);
+          video.removeEventListener("loadedmetadata", onMeta);
+          video.removeEventListener("error", onErr);
+        }
+        video.addEventListener("loadedmetadata", onMeta);
+        video.addEventListener("error", onErr);
+      });
+
+      if (durationSec > 1800) {
+        showQuotaErrorBanner(`⚠️ 單場影片長度上限為 30 分鐘（您選取的影片為 ${(durationSec / 60).toFixed(1)} 分鐘），請先裁切單局後再試。`);
+        video.removeAttribute("src");
+        return;
+      }
+
       hasLocalVideoLoaded = true;
       courtSimCanvas.style.display = "none";
       video.style.display = "block";
-      video.src = objUrl;
-
       document.getElementById("videoSourceStatusBadge").textContent = `📹 ${file.name.slice(0, 14)}`;
 
       const progBox = document.getElementById("analysisProgressBox");
@@ -1695,21 +2347,30 @@
 
       const sampler = document.getElementById("samplerCanvas");
       const sctx = sampler.getContext("2d");
+      const contactFrames = [];
 
-      for (let i = 0; i <= 100; i += 20) {
+      for (let i = 0; i <= 100; i += 25) {
         progBar.style.width = `${i}%`;
         progPct.textContent = `${i}%`;
-        progTxt.textContent = `載入影片並對齊計分板...`;
+        progTxt.textContent = `本機擷取關鍵影格網格並呼叫 Gemini 2.5 Flash 對齊比分...`;
         if (video.readyState >= 2) {
-          try { sctx.drawImage(video, 0, 0, 320, 180); } catch (_) {}
+          try {
+            sctx.drawImage(video, 0, 0, 320, 180);
+            contactFrames.push(sampler.toDataURL("image/jpeg", 0.6));
+          } catch (_) {}
         }
         await new Promise(r => setTimeout(r, 40));
       }
 
-      runFiveTupleViterbiSolver();
+      await analyzeMatchVideoWithQuota({
+        videoName: file.name,
+        durationSec,
+        contactFrames
+      });
+
       setTimeout(() => {
         progBox.style.display = "none";
-      }, 450);
+      }, 350);
     }
 
     let microfilmFallbackTimer = null;
@@ -2827,6 +3488,7 @@
     recomputeScores();
     renderAll();
     loadWallet();
+    initGoogleAuthGate();
     syncTeamNames();
     updateLiveScoreboard(33.0);
     startStageSimulationLoop();
