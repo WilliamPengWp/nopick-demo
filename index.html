@@ -1174,7 +1174,14 @@
             每 Google 帳號 & IP 每日免費 1 部（單場上限 30 分鐘）
           </span>
         </div>
-        <div class="google-input-row">
+        <!-- Official Google Identity Services Button (Auto-shown when GOOGLE_CLIENT_ID is set in Vercel) -->
+        <div id="googleGsiButtonWrap" style="display:none; align-items:center; gap:12px; flex-wrap:wrap; padding:4px 0;">
+          <div id="googleGsiButtonMount"></div>
+          <span style="font-size:13px; font-weight:600; color:var(--court-green);">🔒 Google 官方 OAuth 2.0 安全驗證</span>
+        </div>
+
+        <!-- Stage / Preview Quick Google Login Row (Auto-hidden when GOOGLE_CLIENT_ID is set) -->
+        <div class="google-input-row" id="demoGoogleLoginRow">
           <input id="googleEmailInput" class="google-input" type="email" value="badminton.player@gmail.com" placeholder="輸入您的 Google 信箱 (例如 name@gmail.com)" aria-label="Google 帳號信箱" />
           <input id="googleNameInput" class="google-input" type="text" value="羽球球友" placeholder="顯示暱稱" aria-label="Google 顯示名稱" />
           <button class="btn-google-auth" id="googleLoginPrimaryBtn" onclick="signInWithGoogleAccount()">
@@ -1218,7 +1225,7 @@
 
       <!-- Public Legal & Customer Support Footer inside Gate -->
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; padding-top:10px; border-top:1px solid var(--border-soft); font-size:12px; color:var(--text-secondary);">
-        <span>📩 客服聯絡信箱：<strong>support@nopick.tw</strong>（週一至週五 10:00–18:00）</span>
+        <span>📩 客服聯絡信箱：<strong class="js-support-email-text">support@nopick.tw</strong>（週一至週五 10:00–18:00）</span>
         <div style="display:flex; gap:12px;">
           <button class="footer-link-btn" onclick="openLegalModal()">📜 免責聲明與退費政策</button>
           <button class="footer-link-btn" onclick="openPreviewInfoModal()">✨ 系統架構說明</button>
@@ -1544,7 +1551,7 @@
           🏸 不撿球™ NOPICK.TW — 羽球 AI 自動剪輯與轉播計分板服務
         </div>
         <div>
-          📩 客服聯絡信箱：<a href="mailto:support@nopick.tw" style="color:var(--court-green); font-weight:700;">support@nopick.tw</a>（週一至週五 10:00–18:00）
+          📩 客服聯絡信箱：<a class="js-support-email-link" href="mailto:support@nopick.tw" style="color:var(--court-green); font-weight:700;">support@nopick.tw</a>（週一至週五 10:00–18:00）
         </div>
       </div>
       <div style="line-height:1.6;">
@@ -1623,7 +1630,7 @@
           <div style="color:var(--text-secondary);">
             建議使用支援 WebCodecs 硬體加速之現代瀏覽器（Chrome 94+、Edge 94+、Safari 16.4+）以獲得最佳 1080p60 匯出速度。請優先使用每日免費額度（720p30）測試您的裝置相容性。<br/>
             • <strong>營運主體</strong>：不撿球™ NoPick.tw 獨立開發者團隊<br/>
-            • <strong>客服聯絡信箱</strong>：<a href="mailto:support@nopick.tw" style="color:var(--court-green); font-weight:700;">support@nopick.tw</a><br/>
+            • <strong>客服聯絡信箱</strong>：<a class="js-support-email-link" href="mailto:support@nopick.tw" style="color:var(--court-green); font-weight:700;">support@nopick.tw</a><br/>
             • <strong>客服服務時間</strong>：週一至週五 10:00–18:00（例假日除外，信件將於 24 小時內回覆）
           </div>
         </div>
@@ -1791,8 +1798,16 @@
     const video = document.getElementById("matchVideo");
     const courtSimCanvas = document.getElementById("courtSimCanvas");
 
-    // Phase 4: Mandatory Google Account Session & Taiwan 00:00 Daily Quota State
+    // Phase 4 & 5: Mandatory Google Account Session (GSI OAuth + Signed SessionToken) & Taiwan 00:00 Daily Quota State
     let currentUser = null;
+    let sessionToken = "";
+    let runtimeConfig = {
+      googleClientId: "",
+      strictGoogleAuth: false,
+      supportEmail: "support@nopick.tw",
+      supportEmailIsPlaceholder: true,
+      ecpayEnv: "stage"
+    };
     let dailyQuotaState = {
       dateTw: "",
       globalLimit: 100,
@@ -1810,6 +1825,25 @@
       totalExports: 0
     };
 
+    function getAuthHeaders(extra = {}) {
+      const h = { "Content-Type": "application/json", ...extra };
+      if (sessionToken) {
+        h["Authorization"] = `Bearer ${sessionToken}`;
+      }
+      return h;
+    }
+
+    function applySupportEmailToDOM(email) {
+      if (!email) return;
+      document.querySelectorAll(".js-support-email-text").forEach((el) => {
+        el.textContent = email;
+      });
+      document.querySelectorAll(".js-support-email-link").forEach((el) => {
+        el.textContent = email;
+        el.setAttribute("href", `mailto:${email}`);
+      });
+    }
+
     function getClientTaiwanDateStr() {
       return new Intl.DateTimeFormat("en-CA", {
         timeZone: "Asia/Taipei",
@@ -1819,12 +1853,80 @@
       }).format(new Date());
     }
 
-    function initGoogleAuthGate() {
+    function mountGoogleIdentityButton(clientId) {
+      if (!clientId) return;
+      const gsiWrap = document.getElementById("googleGsiButtonWrap");
+      const demoRow = document.getElementById("demoGoogleLoginRow");
+      if (gsiWrap) gsiWrap.style.display = "flex";
+      if (demoRow) demoRow.style.display = "none";
+
+      const renderGsi = () => {
+        if (!window.google || !window.google.accounts || !window.google.accounts.id) return;
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleGsiCredential
+        });
+        const mountNode = document.getElementById("googleGsiButtonMount");
+        if (mountNode) {
+          mountNode.innerHTML = "";
+          window.google.accounts.id.renderButton(mountNode, {
+            theme: "filled_blue",
+            size: "large",
+            shape: "pill",
+            text: "signin_with",
+            locale: "zh_TW"
+          });
+        }
+      };
+
+      if (window.google && window.google.accounts && window.google.accounts.id) {
+        renderGsi();
+        return;
+      }
+      if (!document.getElementById("googleGsiSdkScript")) {
+        const s = document.createElement("script");
+        s.id = "googleGsiSdkScript";
+        s.src = "https://accounts.google.com/gsi/client";
+        s.async = true;
+        s.defer = true;
+        s.onload = renderGsi;
+        document.head.appendChild(s);
+      }
+    }
+
+    async function handleGoogleGsiCredential(response) {
+      if (!response || !response.credential) return;
+      try {
+        const resp = await fetch("/api/auth/google", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ credential: response.credential })
+        });
+        const data = await resp.json();
+        if (resp.ok && data && data.ok && data.user) {
+          currentUser = data.user;
+          sessionToken = data.sessionToken || "";
+          try {
+            localStorage.setItem("nopick_google_user_v1", JSON.stringify(currentUser));
+            localStorage.setItem("nopick_session_token_v1", sessionToken);
+          } catch (_) {}
+          document.getElementById("topUserEmailLabel").textContent = currentUser.email;
+          document.getElementById("authGateOverlay").style.display = "none";
+          await refreshDailyQuotaSnapshot();
+          return;
+        }
+        showQuotaErrorBanner(`⚠️ ${data.message || "Google 登入驗證失敗，請重試。"}`);
+      } catch (err) {
+        showQuotaErrorBanner(`⚠️ Google 登入連線失敗：${err.message}`);
+      }
+    }
+
+    async function initGoogleAuthGate() {
       try {
         const savedUser = localStorage.getItem("nopick_google_user_v1");
-        if (savedUser) {
-          currentUser = JSON.parse(savedUser);
-        }
+        const savedToken = localStorage.getItem("nopick_session_token_v1");
+        if (savedUser) currentUser = JSON.parse(savedUser);
+        if (savedToken) sessionToken = savedToken;
       } catch (_) {}
 
       const gate = document.getElementById("authGateOverlay");
@@ -1835,6 +1937,43 @@
         gate.style.display = "flex";
         document.getElementById("topUserEmailLabel").textContent = "未登入";
       }
+
+      // Check ECPay browser redirect query parameters (?ecpay_paid=1)
+      try {
+        const q = new URLSearchParams(window.location.search);
+        if (q.get("ecpay_paid") === "1") {
+          const addedMatches = Number(q.get("matches") || 0);
+          const tradeNo = q.get("trade_no") || "";
+          const banner = document.getElementById("quotaErrorBanner");
+          const bannerText = document.getElementById("quotaErrorText");
+          if (banner && bannerText) {
+            banner.style.background = "#ECFDF5";
+            banner.style.borderColor = "rgba(5, 150, 105, 0.35)";
+            banner.style.color = "#065F46";
+            bannerText.textContent = `🎉 綠界 ECPay 付款成功（訂單 ${tradeNo}）！已為您的帳號自動入帳 +${addedMatches} 場 1080p60 無浮水印額度。`;
+            banner.style.display = "flex";
+          }
+          if (window.history && window.history.replaceState) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        }
+      } catch (_) {}
+
+      // Fetch non-secret runtime config (/api/config) for Google Client ID & Support Email
+      try {
+        const cfgResp = await fetch("/api/config");
+        if (cfgResp.ok) {
+          const cfg = await cfgResp.json();
+          if (cfg && cfg.ok) {
+            runtimeConfig = cfg;
+            applySupportEmailToDOM(cfg.supportEmail);
+            if (cfg.googleClientId) {
+              mountGoogleIdentityButton(cfg.googleClientId);
+            }
+          }
+        }
+      } catch (_) {}
+
       refreshDailyQuotaSnapshot();
     }
 
@@ -1848,14 +1987,36 @@
       const email = emailRaw.includes("@") ? emailRaw : `${emailRaw}@gmail.com`;
       const userId = "google_" + email.replace(/[^a-z0-9]/g, "_");
 
-      currentUser = {
-        userId,
-        email,
-        displayName: nameRaw,
-        signedInAt: new Date().toISOString()
-      };
+      let authenticatedViaServer = false;
+      try {
+        const resp = await fetch("/api/auth/google", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, displayName: nameRaw })
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data && data.ok && data.user) {
+            currentUser = data.user;
+            sessionToken = data.sessionToken || "";
+            authenticatedViaServer = true;
+          }
+        }
+      } catch (_) {}
+
+      if (!authenticatedViaServer) {
+        currentUser = {
+          userId,
+          email,
+          displayName: nameRaw,
+          signedInAt: new Date().toISOString()
+        };
+        sessionToken = "";
+      }
+
       try {
         localStorage.setItem("nopick_google_user_v1", JSON.stringify(currentUser));
+        localStorage.setItem("nopick_session_token_v1", sessionToken);
       } catch (_) {}
 
       document.getElementById("topUserEmailLabel").textContent = currentUser.email;
@@ -1869,7 +2030,9 @@
       const email = currentUser ? currentUser.email : "";
 
       try {
-        const resp = await fetch(`/api/quota?userId=${encodeURIComponent(uid)}&email=${encodeURIComponent(email)}`);
+        const resp = await fetch(`/api/quota?userId=${encodeURIComponent(uid)}&email=${encodeURIComponent(email)}`, {
+          headers: sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}
+        });
         if (resp.ok) {
           const data = await resp.json();
           if (data && data.snapshot) {
@@ -1939,6 +2102,9 @@
       const b = document.getElementById("quotaErrorBanner");
       const t = document.getElementById("quotaErrorText");
       if (b && t) {
+        b.style.background = "";
+        b.style.borderColor = "";
+        b.style.color = "";
         t.textContent = msg;
         b.style.display = "flex";
       }
@@ -2007,7 +2173,7 @@
       try {
         const resp = await fetch("/api/ecpay/checkout", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: getAuthHeaders(),
           body: JSON.stringify({
             planId,
             userId: currentUser.userId,
@@ -2018,7 +2184,9 @@
         if (resp.ok) {
           const data = await resp.json();
           window.__lastEcpayCheckout = data;
-          notice.innerHTML = `✅ 已產生綠界訂單 <strong>${data.params.MerchantTradeNo}</strong>（CheckMacValue: <code>${data.params.CheckMacValue.slice(0, 16)}...</code>），可點擊旁側「⚡ 測試回呼」立即驗證 Webhook 入帳，或<a href="/api/ecpay/checkout?planId=${planId}&userId=${encodeURIComponent(currentUser.userId)}" target="_blank" style="color:var(--court-green);font-weight:700;margin-left:4px;">開啟綠界收銀台視窗 ↗</a>`;
+          const tokenQuery = sessionToken ? `&token=${encodeURIComponent(sessionToken)}` : "";
+          const cashierHref = `/api/ecpay/checkout?planId=${encodeURIComponent(planId)}&userId=${encodeURIComponent(currentUser.userId)}&email=${encodeURIComponent(currentUser.email)}${tokenQuery}`;
+          notice.innerHTML = `✅ 已產生綠界訂單 <strong>${data.params.MerchantTradeNo}</strong>（CheckMacValue: <code>${data.params.CheckMacValue.slice(0, 16)}...</code>），可點擊<a href="${cashierHref}" target="_blank" style="color:var(--court-green);font-weight:800;margin:0 4px;text-decoration:underline;">開啟綠界收銀台視窗付款 ↗</a>，或點擊旁側「⚡ 測試回呼」驗證 Webhook 入帳。`;
           return data;
         }
       } catch (_) {}
@@ -2237,7 +2405,7 @@
       try {
         const resp = await fetch("/api/analyze", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: getAuthHeaders(),
           body: JSON.stringify({
             userId: currentUser.userId,
             email: currentUser.email,
@@ -2248,6 +2416,10 @@
         });
         const data = await resp.json();
         if (!resp.ok || !data.ok) {
+          if (resp.status === 401 || data.reason === "AUTH_REQUIRED") {
+            openAuthGateModal();
+            return data;
+          }
           showQuotaErrorBanner(`⚠️ ${data.message || "今日免費剪輯額度已用畢"}`);
           if (data.snapshot) {
             dailyQuotaState = data.snapshot;
