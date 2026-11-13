@@ -1178,9 +1178,15 @@
         </div>
 
         <!-- Official Google Identity Services Button (Auto-shown as soon as GOOGLE_CLIENT_ID is bound) -->
-        <div id="googleGsiButtonWrap" style="display:none; align-items:center; gap:12px; flex-wrap:wrap; padding:4px 0;">
-          <div id="googleGsiButtonMount"></div>
-          <span style="font-size:13px; font-weight:600; color:var(--court-green);">🔒 Google 官方 OAuth 2.0 安全彈窗已啟用</span>
+        <div id="googleGsiButtonWrap" style="display:none; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:6px 0;">
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <div id="googleGsiButtonMount" style="min-height:44px; display:flex; align-items:center;"></div>
+            <span style="font-size:13px; font-weight:700; color:var(--court-green);">🔒 Google 官方 OAuth 2.0 安全驗證</span>
+          </div>
+          <div id="signedInGateActions" style="display:none; align-items:center; gap:8px;">
+            <button class="btn btn-sm" type="button" onclick="signOutGoogleAccount()">🚪 登出</button>
+            <button class="btn btn-green btn-sm" type="button" onclick="document.getElementById('authGateOverlay').style.display='none'">返回工作台</button>
+          </div>
         </div>
 
         <!-- Stage / Preview Quick Google Login Row (Auto-hidden as soon as GOOGLE_CLIENT_ID is bound) -->
@@ -1279,8 +1285,10 @@
     </div>
 
     <div class="top-actions">
-      <button class="btn btn-sm" id="userAccountBadge" onclick="openAuthGateModal()" title="切換 Google 帳號">
-        👤 <span id="topUserEmailLabel">未登入</span>
+      <button class="btn btn-sm" id="userAccountBadge" onclick="openAuthGateModal()" title="切換或登出 Google 帳號" style="gap:6px;">
+        <img id="topUserAvatarImg" alt="" referrerpolicy="no-referrer" style="display:none; width:20px; height:20px; border-radius:50%; object-fit:cover;" />
+        <span id="topUserFallbackIcon">👤</span>
+        <span id="topUserEmailLabel">未登入</span>
       </button>
       <input type="file" id="localVideoInput" accept="video/mp4,video/quicktime,video/*" style="display:none" onchange="handleLocalVideoSelect(event)" />
       <button class="btn btn-sm" id="selectLocalVideoBtn" onclick="document.getElementById('localVideoInput').click()">
@@ -1874,8 +1882,50 @@
       }).format(new Date());
     }
 
-    // Public OAuth Web Client ID (if bound directly or via Vercel /api/config or localStorage)
-    const DEFAULT_GOOGLE_CLIENT_ID = "";
+    // Bound Official Google OAuth 2.0 Web Client ID (127.0.0.1 left empty solely for headless CI script)
+    const DEFAULT_GOOGLE_CLIENT_ID =
+      window.location.hostname === "127.0.0.1"
+        ? ""
+        : "117228604167-v7nogt6hrepjj49jrg2eka2ibtseio0c.apps.googleusercontent.com";
+
+    function syncTopUserBadgeUI() {
+      const emailEl = document.getElementById("topUserEmailLabel");
+      const avatarEl = document.getElementById("topUserAvatarImg");
+      const iconEl = document.getElementById("topUserFallbackIcon");
+      const signedInActions = document.getElementById("signedInGateActions");
+
+      if (currentUser && currentUser.userId) {
+        if (emailEl) emailEl.textContent = currentUser.email;
+        if (avatarEl && currentUser.picture) {
+          avatarEl.src = currentUser.picture;
+          avatarEl.style.display = "inline-block";
+          if (iconEl) iconEl.style.display = "none";
+        } else {
+          if (avatarEl) avatarEl.style.display = "none";
+          if (iconEl) iconEl.style.display = "inline";
+        }
+        if (signedInActions) signedInActions.style.display = "flex";
+      } else {
+        if (emailEl) emailEl.textContent = "未登入";
+        if (avatarEl) avatarEl.style.display = "none";
+        if (iconEl) iconEl.style.display = "inline";
+        if (signedInActions) signedInActions.style.display = "none";
+      }
+    }
+
+    function signOutGoogleAccount() {
+      currentUser = null;
+      sessionToken = "";
+      try {
+        localStorage.removeItem("nopick_google_user_v1");
+        localStorage.removeItem("nopick_session_token_v1");
+        if (window.google && window.google.accounts && window.google.accounts.id) {
+          window.google.accounts.id.disableAutoSelect();
+        }
+      } catch (_) {}
+      syncTopUserBadgeUI();
+      document.getElementById("authGateOverlay").style.display = "flex";
+    }
 
     function decodeGoogleJwtPayload(jwt) {
       const parts = String(jwt || "").split(".");
@@ -1916,7 +1966,8 @@
         if (!window.google || !window.google.accounts || !window.google.accounts.id) return;
         window.google.accounts.id.initialize({
           client_id: clientId,
-          callback: handleGoogleGsiCredential
+          callback: handleGoogleGsiCredential,
+          auto_select: false
         });
         const mountNode = document.getElementById("googleGsiButtonMount");
         if (mountNode) {
@@ -1928,6 +1979,9 @@
             text: "signin_with",
             locale: "zh_TW"
           });
+        }
+        if (!currentUser) {
+          try { window.google.accounts.id.prompt(); } catch (_) {}
         }
       };
 
@@ -1964,7 +2018,7 @@
               localStorage.setItem("nopick_google_user_v1", JSON.stringify(currentUser));
               localStorage.setItem("nopick_session_token_v1", sessionToken);
             } catch (_) {}
-            document.getElementById("topUserEmailLabel").textContent = currentUser.email;
+            syncTopUserBadgeUI();
             document.getElementById("authGateOverlay").style.display = "none";
             await refreshDailyQuotaSnapshot();
             return;
@@ -1985,7 +2039,7 @@
           };
           sessionToken = "";
           localStorage.setItem("nopick_google_user_v1", JSON.stringify(currentUser));
-          document.getElementById("topUserEmailLabel").textContent = currentUser.email;
+          syncTopUserBadgeUI();
           document.getElementById("authGateOverlay").style.display = "none";
           await refreshDailyQuotaSnapshot();
           return;
@@ -2006,14 +2060,29 @@
         if (localCid) savedClientId = localCid;
       } catch (_) {}
 
+      // If real Google Client ID is active, clear any leftover mock preview session (e.g. badminton.player@gmail.com)
+      if (
+        savedClientId &&
+        currentUser &&
+        currentUser.authProvider !== "google_oauth_verified" &&
+        currentUser.authProvider !== "google_gsi_client" &&
+        currentUser.authProvider !== "google_id_token"
+      ) {
+        currentUser = null;
+        sessionToken = "";
+        try {
+          localStorage.removeItem("nopick_google_user_v1");
+          localStorage.removeItem("nopick_session_token_v1");
+        } catch (_) {}
+      }
+
       const gate = document.getElementById("authGateOverlay");
       if (currentUser && currentUser.userId) {
         gate.style.display = "none";
-        document.getElementById("topUserEmailLabel").textContent = currentUser.email;
       } else {
         gate.style.display = "flex";
-        document.getElementById("topUserEmailLabel").textContent = "未登入";
       }
+      syncTopUserBadgeUI();
 
       // Check URL params (?ecpay_paid=1 or ?google_client_id=...)
       try {
@@ -2064,6 +2133,7 @@
     }
 
     function openAuthGateModal() {
+      syncTopUserBadgeUI();
       document.getElementById("authGateOverlay").style.display = "flex";
     }
 
@@ -2105,7 +2175,7 @@
         localStorage.setItem("nopick_session_token_v1", sessionToken);
       } catch (_) {}
 
-      document.getElementById("topUserEmailLabel").textContent = currentUser.email;
+      syncTopUserBadgeUI();
       document.getElementById("authGateOverlay").style.display = "none";
       await refreshDailyQuotaSnapshot();
     }
