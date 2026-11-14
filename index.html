@@ -395,7 +395,15 @@
       overflow: hidden;
     }
 
-    .video-viewport video,
+    .video-viewport video {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: contain;
+      background: #0F172A;
+      cursor: pointer;
+    }
+
     .court-sim-canvas {
       width: 100%;
       height: 100%;
@@ -420,6 +428,15 @@
       border: 1px solid rgba(255, 255, 255, 0.16);
       color: #F8FAFC;
       pointer-events: none;
+    }
+
+    @media (max-width: 600px) {
+      .live-scoreboard {
+        top: 8px;
+        left: 8px;
+        transform: scale(0.82);
+        transform-origin: top left;
+      }
     }
 
     .sb-header {
@@ -588,7 +605,7 @@
       text-decoration-color: var(--court-green);
     }
 
-    /* Visual 37-Rally Strip */
+    /* Dynamic Visual Rally Strip (1 to N Rallies) */
     .timeline-box {
       display: flex;
       flex-direction: column;
@@ -606,16 +623,19 @@
     }
 
     .rally-strip {
-      display: grid;
-      grid-template-columns: repeat(37, 1fr);
+      display: flex;
+      align-items: stretch;
       gap: 3px;
       height: 26px;
       padding: 3px;
       border-radius: 10px;
       background: var(--bg-subtle);
+      overflow-x: auto;
     }
 
     .rally-tick {
+      flex: 1 1 0;
+      min-width: 4px;
       border-radius: 4px;
       cursor: pointer;
       transition: transform 0.12s ease, opacity 0.12s ease;
@@ -643,6 +663,69 @@
       opacity: 1;
       outline: 2px solid var(--text-primary);
       outline-offset: 1px;
+    }
+
+    .cut-tune-bar {
+      padding: 8px 16px;
+      background: #F0FDF4;
+      border-bottom: 1px solid rgba(5, 150, 105, 0.18);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: 12px;
+    }
+
+    .sens-pill {
+      height: 26px;
+      padding: 0 9px;
+      border-radius: 999px;
+      border: 1px solid var(--border-strong);
+      background: #FFFFFF;
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .sens-pill.active {
+      background: var(--court-green);
+      color: #FFFFFF;
+      border-color: var(--court-green);
+    }
+
+    .mini-trim-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-top: 3px;
+    }
+
+    .mini-trim-btn {
+      height: 22px;
+      padding: 0 6px;
+      border-radius: 6px;
+      border: 1px solid var(--border-strong);
+      background: #FFFFFF;
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .mini-trim-btn:hover {
+      background: var(--bg-subtle);
+      color: var(--text-primary);
+    }
+
+    .mini-trim-btn.danger:hover {
+      background: #FEF2F2;
+      color: #DC2626;
+      border-color: rgba(220, 38, 38, 0.35);
     }
 
     /* Export Action Bar inside Left Panel */
@@ -1400,9 +1483,12 @@
     </div>
 
     <div class="progress-card" id="webcodecsProgressBox">
-      <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:600;">
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; font-weight:600; gap:8px;">
         <span id="webcodecsProgressText">正在合成計分板影片...</span>
-        <span class="num" id="webcodecsProgressPct" style="color:var(--court-green);">0%</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="num" id="webcodecsProgressPct" style="color:var(--court-green);">0%</span>
+          <button class="mini-trim-btn danger" type="button" onclick="cancelWebCodecsExport()">⏹️ 取消</button>
+        </div>
       </div>
       <div class="progress-bar-bg"><div class="progress-bar-fill" id="webcodecsProgressBar"></div></div>
     </div>
@@ -1495,13 +1581,18 @@
             </div>
           </div>
 
-          <!-- Visual 37-Rally Color Bar -->
+          <!-- Dynamic Visual Rally Color Bar -->
           <div class="timeline-box">
             <div class="timeline-legend">
               <span>🎯 點色塊跳看該拍（藍＝藍隊得分、綠＝綠隊得分）</span>
-              <button class="btn btn-sm" style="min-height:28px; padding:0 8px; font-size:12px;" id="toggleSkipBtn" onclick="toggleSkipDeadTime()">
-                <span id="skipModeLabel">⚡ 自動跳過撿球：開</span>
-              </button>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <button class="btn btn-sm" style="display:none; min-height:28px; padding:0 8px; font-size:12px;" id="resetDemoMatchBtn" onclick="resetToBuiltInDemoMatch()">
+                  🔄 切回示範賽
+                </button>
+                <button class="btn btn-sm" style="min-height:28px; padding:0 8px; font-size:12px;" id="toggleSkipBtn" onclick="toggleSkipDeadTime()">
+                  <span id="skipModeLabel">⚡ 自動跳過撿球：開</span>
+                </button>
+              </div>
             </div>
             <div class="rally-strip" id="rallyStrip"></div>
           </div>
@@ -1510,9 +1601,9 @@
           <div class="export-action-bar">
             <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
               <select id="exportScopeSelect" class="scope-select" aria-label="匯出範圍">
-                <option value="highlights_5">⚡ 匯出精華 5 拍（約 3 秒）</option>
-                <option value="current_rally">🎯 匯出目前這一拍</option>
-                <option value="all_37">🏟️ 匯出全場 37 拍</option>
+                <option value="highlights_5" id="exportOptHighlights">⚡ 匯出精華 5 拍</option>
+                <option value="current_rally" id="exportOptCurrent">🎯 匯出目前這一拍</option>
+                <option value="all_37" id="exportOptAll">🏟️ 匯出全場 37 拍（剪除撿球完整版）</option>
               </select>
               <button class="btn btn-sm" id="previewWatermarkBtn" onclick="toggleWatermarkPreview()">
                 <span id="watermarkToggleLabel">👁️ 浮水印預覽：關</span>
@@ -1535,13 +1626,24 @@
           <span class="pill pill-emerald num" id="activeRallyIndicator">第 1 拍</span>
         </div>
 
+        <!-- Dead-Time Detection Sensitivity & Segment Fine-Tuning Strip -->
+        <div class="cut-tune-bar" id="cutSensitivityBar">
+          <div style="display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
+            <span style="font-weight:700; color:var(--court-green);" id="cutEngineLabel">🎧 擊球聲紋＋跑動偵測：</span>
+            <button type="button" class="sens-pill" id="sensBtnStrict" onclick="resegmentWithSensitivity('strict')" title="提高門檻，強力濾除隔壁場擊球聲與撿球傳球">嚴格濾鄰場</button>
+            <button type="button" class="sens-pill active" id="sensBtnStandard" onclick="resegmentWithSensitivity('standard')" title="平衡球拍清脆擊球聲紋與場內跑動">標準</button>
+            <button type="button" class="sens-pill" id="sensBtnRelaxed" onclick="resegmentWithSensitivity('relaxed')" title="保留極短發球直接得分拍">寬鬆留短球</button>
+          </div>
+          <button type="button" class="mini-trim-btn" onclick="addRallyAtCurrentTime()" title="在目前影片播放秒數手動插入一拍">➕ 在目前秒數加一拍</button>
+        </div>
+
         <!-- Compact Visual AI Auto-Align Bar -->
         <div class="ai-helper-bar">
           <div style="display:flex; align-items:center; gap:6px;">
             <span id="viterbiStatusText">終場比分：</span>
-            <input id="anchorNear" class="anchor-mini num" type="number" value="16" min="0" max="30" aria-label="近端終場分" />
+            <input id="anchorNear" class="anchor-mini num" type="number" value="16" min="0" max="99" aria-label="近端終場分" />
             <span class="num" style="font-weight:700;">:</span>
-            <input id="anchorFar" class="anchor-mini num" type="number" value="21" min="0" max="30" aria-label="遠端終場分" />
+            <input id="anchorFar" class="anchor-mini num" type="number" value="21" min="0" max="99" aria-label="遠端終場分" />
           </div>
           <div style="display:flex; align-items:center; gap:6px;">
             <button class="btn btn-sm" style="min-height:30px; padding:0 9px; font-size:12px;" id="simulateNoisyBtn" onclick="simulateNoisySingleFrameAI()">
@@ -1608,11 +1710,11 @@
       <div class="preview-explain-grid">
         <div class="explain-box">
           <div style="font-size:24px;">⚡</div>
-          <div style="font-weight:800; font-size:16px; color:var(--court-green);">本機零原檔上雲 ＋ Gemini 2.5 Flash</div>
+          <div style="font-weight:800; font-size:16px; color:var(--court-green);">本機雙模聲紋跑動剪輯 ＋ Gemini 2.5 Flash</div>
           <div style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
-            • <strong>30 分鐘內球賽毫秒級抽幀</strong>：瀏覽器自動擷取關鍵縮圖網格送交雲端 Gemini 2.5 Flash 判讀拍點<br/>
+            • <strong>2–6.8kHz 球拍擊球聲紋＋場內步伐雙模偵測</strong>：精準剪除撿球、擦汗與隔壁場雜音<br/>
             • <strong>五元組 Viterbi 規則鎖定</strong>：一鍵修正單幀誤判，100% 鎖定終場比分與奇偶發球區<br/>
-            • <strong>WebCodecs 硬體加速匯出</strong>：本機直接合成 1080p60 無浮水印或 720p30 免費版 MP4
+            • <strong>WebCodecs 影音同步硬體匯出</strong>：本機直接合成含真實擊球原音之 1080p60 無浮水印或 720p30 MP4
           </div>
         </div>
         <div class="explain-box">
@@ -1746,7 +1848,7 @@
           </div>
           <div style="display:flex; flex-direction:column; gap:6px;">
             <button class="btn btn-sm" id="ecpayCheckoutPass15Btn" onclick="startEcpayCheckout('pass_30d_15')">💳 綠界結帳 NT$399 (+15場)</button>
-            <button class="btn btn-sm" style="min-height:30px; font-size:12px;" onclick="purchaseCreditPackage('30天團主通行證', 10, 399, 'pass_30d_15')">儲值 +10 場 Pro</button>
+            <button class="btn btn-sm" style="min-height:30px; font-size:12px;" id="simulatePass15CallbackBtn" onclick="purchaseCreditPackage('30天團主通行證', 15, 399, 'pass_30d_15')">⚡ 測試回呼 +15 場 Pro</button>
           </div>
         </div>
       </div>
@@ -1779,7 +1881,7 @@
       "far", "far", "near", "near", "far", "far", "far"
     ];
 
-    const RALLIES = [
+    const DEMO_RALLIES = [
       { rally: 1,  start: 33.0,  end: 48.0,  winner: "near", note: "開場後場進攻" },
       { rally: 2,  start: 55.5,  end: 65.0,  winner: "far",  note: "防守反擊得分" },
       { rally: 3,  start: 71.0,  end: 77.0,  winner: "far",  note: "跨步救球反推" },
@@ -1819,13 +1921,37 @@
       { rally: 37, start: 566.0, end: 572.5, winner: "far",  note: "🏆 賽末點 16:21" }
     ];
 
+    function cloneDemoRallies() {
+      return DEMO_RALLIES.map((r) => ({ ...r }));
+    }
+
+    let RALLIES = cloneDemoRallies();
     let skipDeadTime = true;
     let currentRallyIdx = 0;
     let hasLocalVideoLoaded = false;
     let previewWatermarkOnStage = false;
     let isExportingMp4 = false;
+    let cancelExportRequested = false;
+    let matchStartNear = 0;
+    let matchStartFar = 0;
+    let localVideoDurationSec = 580;
+    let currentVideoObjectUrl = null;
+    let currentLocalFile = null;
+    let cachedAudioBuffer = null; // { sampleRate, data: Float32Array }
+    let lastSignalProfile = null;
+    let currentSensitivity = "standard";
+    let lastAutoSkipMs = 0;
     const video = document.getElementById("matchVideo");
     const courtSimCanvas = document.getElementById("courtSimCanvas");
+
+    function escapeHtml(str) {
+      return String(str ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
 
     // Phase 4 & 5: Mandatory Google Account Session (GSI OAuth + Signed SessionToken) & Taiwan 00:00 Daily Quota State
     let currentUser = null;
@@ -2399,10 +2525,37 @@
         : "👁️ 浮水印預覽：關";
     }
 
+    function populatePhysicalObservationsFromWinners(rallies, startNear = 0, startFar = 0) {
+      let ns = startNear;
+      let fs = startFar;
+      let srv = (ns + fs === 0) ? "near" : (rallies[0] && rallies[0].winner ? rallies[0].winner : "near");
+      let nearP1Right = 1;
+      let farP1Right = 1;
+      for (let i = 0; i < rallies.length; i++) {
+        const w = rallies[i].winner === "far" ? "far" : "near";
+        rallies[i].winner = w;
+        const nearSwapped = (srv === "near" && w === "near");
+        const farSwapped = (srv === "far" && w === "far");
+        if (w === "near") {
+          ns++;
+          if (nearSwapped) nearP1Right ^= 1;
+        } else {
+          fs++;
+          if (farSwapped) farP1Right ^= 1;
+        }
+        srv = w;
+        rallies[i].obsNearP1Right = nearP1Right;
+        rallies[i].obsFarP1Right = farP1Right;
+        rallies[i].obsEvenBox = ((w === "near" ? ns : fs) % 2 === 0);
+        if (!rallies[i].obsHandoff) rallies[i].obsHandoff = w;
+        if (typeof rallies[i].lowConfidence !== "boolean") rallies[i].lowConfidence = false;
+      }
+    }
+
     function initPhysicalObservations() {
       let ns = 0, fs = 0, srv = "near", nearP1Right = 1, farP1Right = 1;
       for (let i = 0; i < RALLIES.length; i++) {
-        const w = TRUE_WINNERS[i];
+        const w = TRUE_WINNERS[i] || RALLIES[i].winner || "near";
         const nearSwapped = (srv === "near" && w === "near");
         const farSwapped = (srv === "far" && w === "far");
         if (w === "near") {
@@ -2421,9 +2574,31 @@
       }
     }
 
+    function syncDynamicMatchKpis() {
+      if (!Array.isArray(RALLIES) || RALLIES.length === 0) return;
+      for (let i = 0; i < RALLIES.length; i++) {
+        RALLIES[i].rally = i + 1;
+      }
+      currentRallyIdx = Math.max(0, Math.min(currentRallyIdx, RALLIES.length - 1));
+
+      const activeSec = RALLIES.reduce((acc, r) => acc + Math.max(0, Number(r.end) - Number(r.start)), 0);
+      const totalDur = hasLocalVideoLoaded ? Math.max(activeSec, localVideoDurationSec) : 580;
+      const savedSec = Math.max(0, Math.round(totalDur - activeSec));
+      const mins = String(Math.floor(savedSec / 60)).padStart(2, "0");
+      const secs = String(savedSec % 60).padStart(2, "0");
+      const deadEl = document.getElementById("kpiDeadTime");
+      if (deadEl) deadEl.textContent = `省 ${mins}:${secs}`;
+
+      const optAll = document.getElementById("exportOptAll");
+      if (optAll) optAll.textContent = `🏟️ 匯出全場 ${RALLIES.length} 拍（剪除撿球完整版）`;
+      const optHl = document.getElementById("exportOptHighlights");
+      if (optHl) optHl.textContent = `⚡ 匯出精華 ${Math.min(5, RALLIES.length)} 拍`;
+    }
+
     function recomputeScores() {
-      let near = 0;
-      let far = 0;
+      if (!Array.isArray(RALLIES) || RALLIES.length === 0) return;
+      let near = matchStartNear;
+      let far = matchStartFar;
       let server = "near";
       let nearP1Right = 1;
       let farP1Right = 1;
@@ -2454,13 +2629,35 @@
     }
 
     function runFiveTupleViterbiSolver() {
+      const N = RALLIES.length;
+      if (N === 0) return;
+
+      if (typeof RALLIES[0].obsNearP1Right === "undefined" || typeof RALLIES[0].obsHandoff === "undefined") {
+        populatePhysicalObservationsFromWinners(RALLIES, matchStartNear, matchStartFar);
+      }
+
       const targetNear = parseInt(document.getElementById("anchorNear").value, 10);
       const targetFar = parseInt(document.getElementById("anchorFar").value, 10);
-      const useAnchor = !isNaN(targetNear) && !isNaN(targetFar) && (targetNear + targetFar === RALLIES.length);
+      const validTargets = !isNaN(targetNear) && !isNaN(targetFar) && targetNear >= 0 && targetFar >= 0;
+      const isExactFromZero = validTargets && (targetNear + targetFar === N);
+      const isPartialMatch = validTargets && (targetNear + targetFar > N);
+      const useAnchor = isExactFromZero || isPartialMatch;
 
-      const N = RALLIES.length;
       let dp = new Array(N + 1).fill(null).map(() => new Map());
-      dp[0].set("0,0,near,1,1", { lp: 0.0, back: null, winner: null });
+      if (isPartialMatch) {
+        for (let dNear = 0; dNear <= Math.min(N, targetNear); dNear++) {
+          const dFar = N - dNear;
+          if (dFar <= targetFar) {
+            const sNear = targetNear - dNear;
+            const sFar = targetFar - dFar;
+            dp[0].set(`${sNear},${sFar},near,1,1`, { lp: 0.0, back: null, winner: null });
+            dp[0].set(`${sNear},${sFar},far,1,1`, { lp: -0.02, back: null, winner: null });
+          }
+        }
+      }
+      if (dp[0].size === 0) {
+        dp[0].set("0,0,near,1,1", { lp: 0.0, back: null, winner: null });
+      }
 
       const logP = (p) => Math.log(Math.max(1e-6, Math.min(1 - 1e-6, p)));
 
@@ -2507,12 +2704,68 @@
         }
       }
 
-      let curKey = bestKey;
-      for (let k = N; k >= 1; k--) {
-        const entry = dp[k].get(curKey);
-        RALLIES[k - 1].winner = entry.winner;
-        RALLIES[k - 1].lowConfidence = false;
-        curKey = entry.back;
+      if (bestKey) {
+        let curKey = bestKey;
+        for (let k = N; k >= 1; k--) {
+          const entry = dp[k].get(curKey);
+          RALLIES[k - 1].winner = entry.winner;
+          RALLIES[k - 1].lowConfidence = false;
+          curKey = entry.back;
+        }
+        if (curKey) {
+          const [startNsStr, startFsStr] = curKey.split(",");
+          matchStartNear = parseInt(startNsStr, 10) || 0;
+          matchStartFar = parseInt(startFsStr, 10) || 0;
+        }
+      } else {
+        matchStartNear = 0;
+        matchStartFar = 0;
+      }
+
+      recomputeScores();
+      if (!useAnchor && RALLIES.length > 0) {
+        document.getElementById("anchorNear").value = RALLIES[RALLIES.length - 1].nearAfter;
+        document.getElementById("anchorFar").value = RALLIES[RALLIES.length - 1].farAfter;
+      }
+      syncDynamicMatchKpis();
+      renderAll();
+      updateLiveScoreboard(hasLocalVideoLoaded ? video.currentTime : RALLIES[currentRallyIdx].start);
+
+      const badge = document.getElementById("kpiAccuracyBadge");
+      badge.className = "pill pill-emerald";
+      badge.textContent = `${N}/${N} 拍已鎖定`;
+      document.getElementById("viterbiStatusText").textContent = "✅ 已自動對齊：";
+    }
+
+    function simulateNoisySingleFrameAI() {
+      const N = RALLIES.length;
+      if (N === 0) return;
+
+      let flipped = 0;
+      if (!hasLocalVideoLoaded && N === 37) {
+        const errorIndices = [1, 3, 6, 8, 11, 14, 17, 19, 21, 24, 26, 29, 31, 34, 35];
+        RALLIES.forEach((r, i) => {
+          if (errorIndices.includes(i)) {
+            r.winner = TRUE_WINNERS[i] === "near" ? "far" : "near";
+            r.lowConfidence = true;
+            flipped++;
+          } else {
+            r.winner = TRUE_WINNERS[i];
+            r.lowConfidence = false;
+          }
+        });
+      } else {
+        RALLIES.forEach((r, i) => {
+          const baseWinner = r.obsHandoff || r.winner || "near";
+          if (i % 3 === 1 || i % 7 === 3) {
+            r.winner = baseWinner === "near" ? "far" : "near";
+            r.lowConfidence = true;
+            flipped++;
+          } else {
+            r.winner = baseWinner;
+            r.lowConfidence = false;
+          }
+        });
       }
 
       recomputeScores();
@@ -2520,33 +2773,790 @@
       updateLiveScoreboard(hasLocalVideoLoaded ? video.currentTime : RALLIES[currentRallyIdx].start);
 
       const badge = document.getElementById("kpiAccuracyBadge");
-      badge.className = "pill pill-emerald";
-      badge.textContent = "37/37 拍已鎖定";
-      document.getElementById("viterbiStatusText").textContent = "✅ 已自動對齊：";
+      badge.className = "pill pill-amber";
+      badge.textContent = `待修正 ${flipped} 拍`;
+      document.getElementById("viterbiStatusText").textContent = `⚠️ 模擬看錯 ${flipped} 拍：`;
     }
 
-    function simulateNoisySingleFrameAI() {
-      const errorIndices = [1, 3, 6, 8, 11, 14, 17, 19, 21, 24, 26, 29, 31, 34, 35];
-      RALLIES.forEach((r, i) => {
-        if (errorIndices.includes(i)) {
-          r.winner = TRUE_WINNERS[i] === "near" ? "far" : "near";
-          r.lowConfidence = true;
-        } else {
-          r.winner = TRUE_WINNERS[i];
-          r.lowConfidence = false;
+    // ============================================================================
+    // Real Dual-Modal Badminton Dead-Time Removal Engine
+    // (2.0–6.8kHz Racket-Impact Transient Chain + 48-Zone Center-Court Motion)
+    // ============================================================================
+    function computePercentile(arr, q) {
+      if (!arr || arr.length === 0) return 0;
+      const copy = Array.from(arr).sort((a, b) => a - b);
+      const pos = Math.max(0, Math.min(copy.length - 1, Math.floor((copy.length - 1) * q)));
+      return copy[pos];
+    }
+
+    function seekVideoSafe(videoEl, targetSec, timeoutMs = 280) {
+      return new Promise((resolve) => {
+        const dur = Number.isFinite(videoEl.duration) && videoEl.duration > 0 ? videoEl.duration : localVideoDurationSec;
+        const clamped = Math.max(0, Math.min(Math.max(0, dur - 0.02), targetSec));
+        if (Math.abs(videoEl.currentTime - clamped) < 0.012 && videoEl.readyState >= 2) {
+          resolve();
+          return;
+        }
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          videoEl.removeEventListener("seeked", finish);
+          videoEl.removeEventListener("error", finish);
+          resolve();
+        };
+        const timer = setTimeout(finish, timeoutMs);
+        videoEl.addEventListener("seeked", finish, { once: true });
+        videoEl.addEventListener("error", finish, { once: true });
+        try {
+          videoEl.currentTime = clamped;
+        } catch (_) {
+          finish();
         }
       });
-      recomputeScores();
-      renderAll();
-      updateLiveScoreboard(hasLocalVideoLoaded ? video.currentTime : RALLIES[currentRallyIdx].start);
-
-      const badge = document.getElementById("kpiAccuracyBadge");
-      badge.className = "pill pill-amber";
-      badge.textContent = "待修正 15 拍";
-      document.getElementById("viterbiStatusText").textContent = "⚠️ 模擬看錯 15 拍：";
     }
 
-    async function analyzeMatchVideoWithQuota({ videoName = "match.mp4", durationSec = 580, contactFrames = [] }) {
+    async function extractAcousticHitProfile(file, durationSec, onProgress) {
+      cachedAudioBuffer = null;
+      if (!file || file.size > 180 * 1024 * 1024) {
+        return { hasUsableAudio: false, hits: [], env: new Float32Array(0), envStepSec: 0.02, p90HitAmp: 0 };
+      }
+
+      try {
+        if (onProgress) onProgress(8, "🎧 正在解碼音軌並分離 2.0–6.8kHz 羽球拍擊球清脆聲紋...");
+        const rawBuf = await file.arrayBuffer();
+        const targetSr = durationSec > 600 ? 24000 : 48000;
+        const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+        let decoded = null;
+
+        if (OfflineCtx) {
+          const octx = new OfflineCtx(1, targetSr, targetSr);
+          decoded = await octx.decodeAudioData(rawBuf.slice(0));
+        } else {
+          const Actx = window.AudioContext || window.webkitAudioContext;
+          if (Actx) {
+            const actx = new Actx();
+            try {
+              decoded = await actx.decodeAudioData(rawBuf.slice(0));
+            } finally {
+              actx.close().catch(() => {});
+            }
+          }
+        }
+
+        if (!decoded || decoded.length === 0) {
+          return { hasUsableAudio: false, hits: [], env: new Float32Array(0), envStepSec: 0.02, p90HitAmp: 0 };
+        }
+
+        const sr = decoded.sampleRate;
+        const len = decoded.length;
+        const nCh = decoded.numberOfChannels;
+        const mono = new Float32Array(len);
+        if (nCh === 1) {
+          mono.set(decoded.getChannelData(0));
+        } else {
+          const ch0 = decoded.getChannelData(0);
+          const ch1 = decoded.getChannelData(1);
+          for (let i = 0; i < len; i++) mono[i] = (ch0[i] + ch1[i]) * 0.5;
+        }
+        cachedAudioBuffer = { sampleRate: sr, data: mono };
+
+        // 2-stage High-Pass at 2,000 Hz + Low-Pass at 6,800 Hz to isolate stringbed-on-cork transients
+        const dt = 1 / sr;
+        const rcHp = 1 / (2 * Math.PI * 2000);
+        const alphaHp = rcHp / (rcHp + dt);
+        const fcLp = Math.min(6800, sr * 0.42);
+        const rcLp = 1 / (2 * Math.PI * fcLp);
+        const alphaLp = dt / (rcLp + dt);
+
+        const hop = Math.max(1, Math.round(sr * 0.02)); // 20ms bins (50Hz)
+        const numBins = Math.ceil(len / hop);
+        const env = new Float32Array(numBins);
+
+        let prevX1 = 0, prevY1 = 0, prevX2 = 0, prevY2 = 0, prevLp = 0;
+        for (let b = 0; b < numBins; b++) {
+          const start = b * hop;
+          const end = Math.min(len, start + hop);
+          let sumSq = 0;
+          let maxAbs = 0;
+          for (let i = start; i < end; i++) {
+            const x = mono[i];
+            const hp1 = alphaHp * (prevY1 + x - prevX1);
+            prevX1 = x;
+            prevY1 = hp1;
+            const hp2 = alphaHp * (prevY2 + hp1 - prevX2);
+            prevX2 = hp1;
+            prevY2 = hp2;
+            const bp = prevLp + alphaLp * (hp2 - prevLp);
+            prevLp = bp;
+
+            const a = Math.abs(bp);
+            if (a > maxAbs) maxAbs = a;
+            sumSq += bp * bp;
+          }
+          const rms = Math.sqrt(sumSq / Math.max(1, end - start));
+          env[b] = rms * 0.62 + maxAbs * 0.38;
+        }
+
+        const globalNoiseFloor = Math.max(1e-4, computePercentile(env, 0.25));
+        const maxEnv = computePercentile(env, 0.995);
+        if (maxEnv < globalNoiseFloor * 2.1 || maxEnv < 4e-4) {
+          return { hasUsableAudio: false, hits: [], env, envStepSec: hop / sr, p90HitAmp: 0 };
+        }
+
+        // Detect sharp racket-impact transients (refractory ±140ms = ±7 bins)
+        const candidateHits = [];
+        const bgScratch = [];
+        for (let b = 3; b < numBins - 3; b++) {
+          const cur = env[b];
+          if (cur < globalNoiseFloor * 2.0) continue;
+
+          let isLocalMax = true;
+          const rStart = Math.max(0, b - 7);
+          const rEnd = Math.min(numBins - 1, b + 7);
+          for (let j = rStart; j <= rEnd; j++) {
+            if (j !== b && env[j] > cur) {
+              isLocalMax = false;
+              break;
+            }
+          }
+          if (!isLocalMax) continue;
+
+          bgScratch.length = 0;
+          const wStart = Math.max(0, b - 22);
+          const wEnd = Math.min(numBins - 1, b + 22);
+          for (let j = wStart; j <= wEnd; j++) {
+            if (Math.abs(j - b) > 2) bgScratch.push(env[j]);
+          }
+          bgScratch.sort((a, c) => a - c);
+          const bg = Math.max(globalNoiseFloor * 0.75, bgScratch[Math.floor(bgScratch.length * 0.35)] || globalNoiseFloor);
+
+          let susSum = 0, susCnt = 0;
+          const sStart = Math.max(0, b - 9);
+          const sEnd = Math.min(numBins - 1, b + 9);
+          for (let j = sStart; j <= sEnd; j++) {
+            if (Math.abs(j - b) > 1) {
+              susSum += env[j];
+              susCnt++;
+            }
+          }
+          const sustain = Math.max(globalNoiseFloor * 0.75, susCnt > 0 ? susSum / susCnt : bg);
+          const prominence = cur / bg;
+          const sharpness = cur / sustain;
+
+          if (prominence >= 2.0 && sharpness >= 1.18) {
+            candidateHits.push({
+              time: Number(((b * hop) / sr).toFixed(3)),
+              amp: cur,
+              prominence: Number(prominence.toFixed(2)),
+              sharpness: Number(sharpness.toFixed(2))
+            });
+          }
+        }
+
+        const hitAmps = candidateHits.map((h) => h.amp);
+        const p90HitAmp = hitAmps.length > 0 ? computePercentile(hitAmps, 0.90) : maxEnv;
+        return {
+          hasUsableAudio: candidateHits.length >= 2,
+          hits: candidateHits,
+          env,
+          envStepSec: hop / sr,
+          p90HitAmp
+        };
+      } catch (err) {
+        console.warn("Audio transient extraction fallback to pure visual motion:", err);
+        return { hasUsableAudio: false, hits: [], env: new Float32Array(0), envStepSec: 0.02, p90HitAmp: 0 };
+      }
+    }
+
+    async function extractVisualCourtMotionProfile(videoEl, durationSec, onProgress) {
+      const mCanvas = document.createElement("canvas");
+      const MW = 160, MH = 90;
+      mCanvas.width = MW;
+      mCanvas.height = MH;
+      const mctx = mCanvas.getContext("2d", { willReadFrequently: true });
+
+      const sampler = document.getElementById("samplerCanvas");
+      const sctx = sampler.getContext("2d");
+      const contactFrames = [];
+
+      const stepSec = Math.max(0.35, Math.min(0.90, durationSec / 220));
+      const sampleTimes = [];
+      for (let t = 0.12; t < durationSec - 0.08; t += stepSec) {
+        sampleTimes.push(Number(t.toFixed(3)));
+      }
+      if (sampleTimes.length === 0) sampleTimes.push(0);
+
+      const contactIndices = new Set();
+      for (let k = 0; k < 6; k++) {
+        contactIndices.add(Math.min(sampleTimes.length - 1, Math.floor(((k + 0.5) / 6) * sampleTimes.length)));
+      }
+
+      // 8x6 = 48 zones inside center court ROI (X: 12.5%..87.5%, Y: 15.5%..92.2%)
+      const cols = 8, rows = 6;
+      const rx0 = 20, ry0 = 14, cellW = 15, cellH = 11;
+      let prevCells = null;
+      const samples = [];
+
+      const prevMuted = videoEl.muted;
+      videoEl.muted = true;
+      videoEl.pause();
+
+      try {
+        for (let idx = 0; idx < sampleTimes.length; idx++) {
+          const t = sampleTimes[idx];
+          await seekVideoSafe(videoEl, t, 260);
+
+          mctx.drawImage(videoEl, 0, 0, MW, MH);
+          const img = mctx.getImageData(0, 0, MW, MH).data;
+
+          const curCells = new Float32Array(cols * rows);
+          for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+              let sum = 0;
+              const py0 = ry0 + r * cellH;
+              const px0 = rx0 + c * cellW;
+              for (let py = py0; py < py0 + cellH; py += 2) {
+                const rowOff = py * MW * 4;
+                for (let px = px0; px < px0 + cellW; px += 2) {
+                  const p = rowOff + px * 4;
+                  sum += img[p] * 0.299 + img[p + 1] * 0.587 + img[p + 2] * 0.114;
+                }
+              }
+              curCells[r * cols + c] = sum / (Math.ceil(cellH / 2) * Math.ceil(cellW / 2));
+            }
+          }
+
+          let courtMotion = 0;
+          let activeZoneRatio = 0;
+          let nearMotion = 0;
+          let farMotion = 0;
+
+          if (prevCells) {
+            // Remove frame-wide global brightness shift (gym 60Hz lighting flicker & auto-exposure)
+            let meanSigned = 0;
+            for (let z = 0; z < 48; z++) meanSigned += (curCells[z] - prevCells[z]);
+            meanSigned /= 48;
+
+            const diffs = new Float32Array(48);
+            let activeCnt = 0;
+            let nearSum = 0, farSum = 0;
+            for (let z = 0; z < 48; z++) {
+              const d = Math.abs((curCells[z] - prevCells[z]) - meanSigned);
+              diffs[z] = d;
+              if (d > 4.0) activeCnt++;
+              if (z >= 24) nearSum += d;
+              else farSum += d;
+            }
+            const sortedDiffs = Array.from(diffs).sort((a, b) => b - a);
+            let top16 = 0;
+            for (let k = 0; k < 16; k++) top16 += sortedDiffs[k];
+            courtMotion = top16 / 16;
+            activeZoneRatio = activeCnt / 48;
+            nearMotion = nearSum / 24;
+            farMotion = farSum / 24;
+          }
+
+          prevCells = curCells;
+          samples.push({ t, courtMotion, activeZoneRatio, nearMotion, farMotion });
+
+          if (contactIndices.has(idx)) {
+            try {
+              sctx.drawImage(videoEl, 0, 0, 320, 180);
+              contactFrames.push(sampler.toDataURL("image/jpeg", 0.62));
+            } catch (_) {}
+          }
+
+          if (onProgress && (idx % 10 === 0 || idx === sampleTimes.length - 1)) {
+            const pct = 22 + Math.round(((idx + 1) / sampleTimes.length) * 62);
+            onProgress(pct, `👟 正在掃描場內 48 宮格步伐與回合邊界 (${formatTime(t)} / ${formatTime(durationSec)})...`);
+            await new Promise((r) => setTimeout(r, 0));
+          }
+        }
+      } finally {
+        videoEl.muted = prevMuted;
+      }
+
+      // Normalize courtActivity [0..1]
+      const rawMotions = samples.map((s) => s.courtMotion);
+      const p92Motion = Math.max(2.5, computePercentile(rawMotions, 0.92));
+      for (const s of samples) {
+        const normM = Math.min(1.2, s.courtMotion / p92Motion);
+        s.courtActivity = Number((Math.min(1.0, s.activeZoneRatio * 0.55 + normM * 0.45)).toFixed(3));
+      }
+
+      return { samples, stepSec, contactFrames };
+    }
+
+    function getVisualMetricsInWindow(visSamples, t0, t1) {
+      if (!visSamples || visSamples.length === 0) {
+        return { meanActivity: 0.5, maxActivity: 0.5, nearMotion: 1, farMotion: 1 };
+      }
+      let sumAct = 0, maxAct = 0, nearSum = 0, farSum = 0, cnt = 0;
+      for (const s of visSamples) {
+        if (s.t >= t0 - 0.45 && s.t <= t1 + 0.45) {
+          sumAct += s.courtActivity;
+          if (s.courtActivity > maxAct) maxAct = s.courtActivity;
+          nearSum += s.nearMotion;
+          farSum += s.farMotion;
+          cnt++;
+        }
+      }
+      if (cnt === 0) {
+        let nearest = visSamples[0];
+        let bestDist = Infinity;
+        const mid = (t0 + t1) * 0.5;
+        for (const s of visSamples) {
+          const d = Math.abs(s.t - mid);
+          if (d < bestDist) {
+            bestDist = d;
+            nearest = s;
+          }
+        }
+        return {
+          meanActivity: nearest.courtActivity,
+          maxActivity: nearest.courtActivity,
+          nearMotion: nearest.nearMotion,
+          farMotion: nearest.farMotion
+        };
+      }
+      return {
+        meanActivity: sumAct / cnt,
+        maxActivity: maxAct,
+        nearMotion: nearSum / cnt,
+        farMotion: farSum / cnt
+      };
+    }
+
+    function segmentRalliesFromSignalProfile(profile, mode = "standard") {
+      const durationSec = profile.durationSec;
+      const visSamples = profile.visual.samples || [];
+      const cfgMap = {
+        strict: {
+          promMin: 3.5, sharpMin: 1.44, strongAmpFrac: 0.56, medAmpFrac: 0.34,
+          motionGate: 0.36, maxHitGap: 2.15, minHits: 3, preRoll: 0.60, postRoll: 0.90,
+          minRallyDur: 2.1, visK: 1.35
+        },
+        standard: {
+          promMin: 2.6, sharpMin: 1.30, strongAmpFrac: 0.40, medAmpFrac: 0.22,
+          motionGate: 0.24, maxHitGap: 2.70, minHits: 2, preRoll: 0.85, postRoll: 1.15,
+          minRallyDur: 1.7, visK: 0.90
+        },
+        relaxed: {
+          promMin: 2.05, sharpMin: 1.18, strongAmpFrac: 0.26, medAmpFrac: 0.14,
+          motionGate: 0.12, maxHitGap: 3.35, minHits: 1, preRoll: 1.10, postRoll: 1.45,
+          minRallyDur: 1.3, visK: 0.55
+        }
+      };
+      const cfg = cfgMap[mode] || cfgMap.standard;
+      let rawSegments = [];
+      let engineMode = "visual-footwork";
+
+      if (profile.audio && profile.audio.hasUsableAudio && profile.audio.hits.length >= 2) {
+        const p90 = Math.max(1e-4, profile.audio.p90HitAmp);
+        const filteredHits = profile.audio.hits.filter((h) => {
+          if (h.prominence < cfg.promMin || h.sharpness < cfg.sharpMin) return false;
+          const vm = getVisualMetricsInWindow(visSamples, h.time - 0.35, h.time + 0.35);
+          if (h.amp >= p90 * cfg.strongAmpFrac) return true;
+          if (h.amp >= p90 * cfg.medAmpFrac && vm.maxActivity >= cfg.motionGate) return true;
+          return false;
+        });
+
+        // Group filtered racket impacts into rally chains
+        const chains = [];
+        for (const h of filteredHits) {
+          const lastChain = chains[chains.length - 1];
+          if (lastChain && (h.time - lastChain.hits[lastChain.hits.length - 1].time) <= cfg.maxHitGap) {
+            lastChain.hits.push(h);
+          } else {
+            chains.push({ hits: [h] });
+          }
+        }
+
+        // Merge consecutive chains separated by < 1.9s if center-court footwork stayed active (high defensive lob)
+        const mergedChains = [];
+        for (const ch of chains) {
+          const prev = mergedChains[mergedChains.length - 1];
+          if (prev) {
+            const gapStart = prev.hits[prev.hits.length - 1].time;
+            const gapEnd = ch.hits[0].time;
+            const gap = gapEnd - gapStart;
+            if (gap <= 1.90) {
+              const gapVis = getVisualMetricsInWindow(visSamples, gapStart, gapEnd);
+              if (gapVis.meanActivity >= cfg.motionGate + 0.08) {
+                prev.hits.push(...ch.hits);
+                continue;
+              }
+            }
+          }
+          mergedChains.push({ hits: ch.hits.slice() });
+        }
+
+        for (const ch of mergedChains) {
+          const tFirst = ch.hits[0].time;
+          const tLast = ch.hits[ch.hits.length - 1].time;
+          const vm = getVisualMetricsInWindow(visSamples, tFirst, tLast);
+          const hitCnt = ch.hits.length;
+
+          // Reject single-hit shuttle passes across the net during dead-time pickup!
+          if (hitCnt < cfg.minHits) {
+            if (!(mode === "standard" && hitCnt === 2) && !(mode === "strict" && hitCnt === 2 && (tLast - tFirst) >= 1.2 && vm.meanActivity >= 0.48)) {
+              continue;
+            }
+          }
+          if (mode === "relaxed" && hitCnt === 1 && vm.maxActivity < 0.32) {
+            continue;
+          }
+
+          const s = Math.max(0, tFirst - cfg.preRoll);
+          const e = Math.min(durationSec, Math.max(s + cfg.minRallyDur, tLast + cfg.postRoll));
+          rawSegments.push({ start: s, end: e, hitCount: hitCnt });
+        }
+
+        if (rawSegments.length > 0) {
+          engineMode = "dual-audio-motion";
+        }
+      }
+
+      // Pure-Visual Center-Court Footwork Fallback (for muted / music-overlaid videos)
+      if (rawSegments.length === 0 && visSamples.length >= 3) {
+        const acts = visSamples.map((s) => s.courtActivity);
+        const med = computePercentile(acts, 0.50);
+        const absDevs = acts.map((a) => Math.abs(a - med));
+        const mad = Math.max(0.05, computePercentile(absDevs, 0.50));
+        const th = Math.max(0.16, Math.min(0.68, med + cfg.visK * mad * 1.48));
+
+        let curStart = null;
+        let lastActiveT = null;
+        for (const s of visSamples) {
+          if (s.courtActivity >= th) {
+            if (curStart === null) curStart = s.t;
+            lastActiveT = s.t;
+          } else if (curStart !== null && (s.t - lastActiveT) > 1.65) {
+            if ((lastActiveT - curStart) >= cfg.minRallyDur * 0.75) {
+              rawSegments.push({
+                start: Math.max(0, curStart - cfg.preRoll * 0.8),
+                end: Math.min(durationSec, lastActiveT + cfg.postRoll * 0.8),
+                hitCount: 0
+              });
+            }
+            curStart = null;
+            lastActiveT = null;
+          }
+        }
+        if (curStart !== null && lastActiveT !== null && (lastActiveT - curStart) >= cfg.minRallyDur * 0.75) {
+          rawSegments.push({
+            start: Math.max(0, curStart - cfg.preRoll * 0.8),
+            end: Math.min(durationSec, lastActiveT + cfg.postRoll * 0.8),
+            hitCount: 0
+          });
+        }
+      }
+
+      // Resolve any overlaps after preRoll/postRoll padding
+      rawSegments.sort((a, b) => a.start - b.start);
+      const cleanSegments = [];
+      for (const seg of rawSegments) {
+        const prev = cleanSegments[cleanSegments.length - 1];
+        if (prev && seg.start <= prev.end + 0.30) {
+          prev.end = Math.max(prev.end, seg.end);
+          prev.hitCount = (prev.hitCount || 0) + (seg.hitCount || 0);
+        } else {
+          cleanSegments.push({
+            start: Number(seg.start.toFixed(1)),
+            end: Number(Math.max(seg.start + 1.0, seg.end).toFixed(1)),
+            hitCount: seg.hitCount || 0
+          });
+        }
+      }
+
+      let fallbackSingleClip = false;
+      if (cleanSegments.length === 0) {
+        fallbackSingleClip = true;
+        cleanSegments.push({
+          start: 0.0,
+          end: Number(Math.max(1.0, durationSec).toFixed(1)),
+          hitCount: 0
+        });
+      }
+
+      // Build rally objects with visual tail winner estimation & physical observations
+      const builtRallies = cleanSegments.map((seg, i) => {
+        const dur = Math.max(1.0, seg.end - seg.start);
+        const tailMetrics = getVisualMetricsInWindow(
+          visSamples,
+          seg.start + dur * 0.55,
+          seg.end
+        );
+        // Team scrambling harder right before shuttle hits floor is more often defending/conceding,
+        // tie-breaking cleanly with rally index if motion is balanced
+        let estWinner = "near";
+        if (Math.abs(tailMetrics.nearMotion - tailMetrics.farMotion) > 0.35) {
+          estWinner = tailMetrics.farMotion >= tailMetrics.nearMotion ? "near" : "far";
+        } else {
+          estWinner = i % 2 === 0 ? "near" : "far";
+        }
+
+        const hitsLabel = seg.hitCount > 0 ? `${seg.hitCount}拍` : `${Math.round(dur)}秒`;
+        let note = `場內對抽 (${hitsLabel})`;
+        if (fallbackSingleClip) {
+          note = "全段保留（可切換寬鬆或手動加拍）";
+        } else if (dur >= 17) {
+          note = `🔥 ${Math.round(dur)}秒高速多拍 (${hitsLabel})`;
+        } else if (dur >= 10.5) {
+          note = `多拍攻防對拉 (${hitsLabel})`;
+        } else if (dur <= 4.3) {
+          note = `發接發快攻 (${hitsLabel})`;
+        }
+
+        return {
+          rally: i + 1,
+          start: seg.start,
+          end: seg.end,
+          winner: estWinner,
+          obsHandoff: estWinner,
+          hitCount: seg.hitCount,
+          note,
+          lowConfidence: false
+        };
+      });
+
+      populatePhysicalObservationsFromWinners(builtRallies, 0, 0);
+      return {
+        rallies: builtRallies,
+        engineMode: fallbackSingleClip ? "single-clip-fallback" : engineMode,
+        rawHitCount: profile.audio ? profile.audio.hits.length : 0
+      };
+    }
+
+    async function analyzeLocalVideoRalliesDSP(file, videoEl, durationSec, onProgress) {
+      const audio = await extractAcousticHitProfile(file, durationSec, onProgress);
+      const visual = await extractVisualCourtMotionProfile(videoEl, durationSec, onProgress);
+      const profile = { durationSec, audio, visual };
+      lastSignalProfile = profile;
+
+      if (onProgress) onProgress(90, "✂️ 正在融合擊球聲紋與場內跑動，精準切除撿球空白...");
+      const segResult = segmentRalliesFromSignalProfile(profile, currentSensitivity);
+
+      window.__lastCutDiagnostics = {
+        durationSec,
+        engineMode: segResult.engineMode,
+        hasUsableAudio: audio.hasUsableAudio,
+        rawCandidateHits: audio.hits.length,
+        detectedRallyCount: segResult.rallies.length,
+        sensitivity: currentSensitivity,
+        rallies: segResult.rallies.map((r) => ({ rally: r.rally, start: r.start, end: r.end, hitCount: r.hitCount }))
+      };
+
+      return {
+        ...segResult,
+        contactFrames: visual.contactFrames,
+        audioPeaks: audio.hits.slice(0, 300).map((h) => ({ t: h.time, p: h.prominence }))
+      };
+    }
+
+    function updateCutEngineLabelUI(engineMode, rallyCount) {
+      const lbl = document.getElementById("cutEngineLabel");
+      if (!lbl) return;
+      if (!hasLocalVideoLoaded) {
+        lbl.textContent = "🎧 擊球聲紋＋跑動偵測：";
+        return;
+      }
+      if (engineMode === "dual-audio-motion") {
+        lbl.textContent = `🎧 聲紋＋步伐已抓出 ${rallyCount} 拍：`;
+      } else if (engineMode === "visual-footwork") {
+        lbl.textContent = `👟 純視覺步伐已抓出 ${rallyCount} 拍：`;
+      } else {
+        lbl.textContent = `⚠️ 低間歇片段（${rallyCount} 拍）：`;
+      }
+    }
+
+    function resegmentWithSensitivity(mode) {
+      currentSensitivity = mode;
+      ["Strict", "Standard", "Relaxed"].forEach((suffix) => {
+        const btn = document.getElementById(`sensBtn${suffix}`);
+        if (btn) btn.classList.toggle("active", suffix.toLowerCase() === mode);
+      });
+
+      if (hasLocalVideoLoaded && lastSignalProfile) {
+        const seg = segmentRalliesFromSignalProfile(lastSignalProfile, mode);
+        RALLIES = seg.rallies;
+        matchStartNear = 0;
+        matchStartFar = 0;
+        currentRallyIdx = 0;
+        recomputeScores();
+        document.getElementById("anchorNear").value = RALLIES[RALLIES.length - 1].nearAfter;
+        document.getElementById("anchorFar").value = RALLIES[RALLIES.length - 1].farAfter;
+        syncDynamicMatchKpis();
+        updateCutEngineLabelUI(seg.engineMode, RALLIES.length);
+        renderAll();
+        if (RALLIES[0]) {
+          video.currentTime = RALLIES[0].start;
+          updateLiveScoreboard(RALLIES[0].start);
+        }
+        const badge = document.getElementById("kpiAccuracyBadge");
+        if (badge) {
+          badge.className = "pill pill-emerald";
+          badge.textContent = `${RALLIES.length}/${RALLIES.length} 拍已鎖定`;
+        }
+      }
+    }
+
+    function deleteRallySegment(idx) {
+      if (RALLIES.length <= 1) {
+        showQuotaErrorBanner("⚠️ 至少需保留 1 拍比賽片段。");
+        return;
+      }
+      RALLIES.splice(idx, 1);
+      populatePhysicalObservationsFromWinners(RALLIES, matchStartNear, matchStartFar);
+      recomputeScores();
+      document.getElementById("anchorNear").value = RALLIES[RALLIES.length - 1].nearAfter;
+      document.getElementById("anchorFar").value = RALLIES[RALLIES.length - 1].farAfter;
+      syncDynamicMatchKpis();
+      renderAll();
+      const targetR = RALLIES[Math.min(idx, RALLIES.length - 1)];
+      if (targetR) {
+        updateLiveScoreboard(hasLocalVideoLoaded ? video.currentTime : targetR.start);
+      }
+    }
+
+    function nudgeRallyTime(idx, field, deltaSec) {
+      const r = RALLIES[idx];
+      if (!r) return;
+      const maxDur = hasLocalVideoLoaded ? localVideoDurationSec : 580;
+      const minBound = idx > 0 ? RALLIES[idx - 1].end + 0.1 : 0;
+      const maxBound = idx < RALLIES.length - 1 ? RALLIES[idx + 1].start - 0.1 : maxDur;
+
+      if (field === "start") {
+        r.start = Number(Math.max(minBound, Math.min(r.end - 0.8, r.start + deltaSec)).toFixed(1));
+        if (hasLocalVideoLoaded) video.currentTime = r.start;
+      } else {
+        r.end = Number(Math.min(maxBound, Math.max(r.start + 0.8, r.end + deltaSec)).toFixed(1));
+        if (hasLocalVideoLoaded) video.currentTime = Math.max(r.start, r.end - 1.0);
+      }
+      syncDynamicMatchKpis();
+      renderAll();
+    }
+
+    function addRallyAtCurrentTime() {
+      const maxDur = hasLocalVideoLoaded ? localVideoDurationSec : 580;
+      const centerT = hasLocalVideoLoaded
+        ? video.currentTime
+        : (RALLIES[currentRallyIdx] ? RALLIES[currentRallyIdx].end + 2.5 : 10.0);
+
+      // Case 1: Current playback time is inside an existing rally -> split into two clean non-overlapping rallies
+      const containingIdx = RALLIES.findIndex((r) => centerT >= r.start - 0.05 && centerT <= r.end + 0.05);
+      if (containingIdx !== -1) {
+        const cur = RALLIES[containingIdx];
+        if ((cur.end - cur.start) >= 2.6 && centerT > cur.start + 0.9 && centerT < cur.end - 0.9) {
+          const splitPoint = Number(centerT.toFixed(1));
+          const secondHalf = {
+            rally: cur.rally + 1,
+            start: Number((splitPoint + 0.1).toFixed(1)),
+            end: cur.end,
+            winner: cur.winner,
+            obsHandoff: cur.winner,
+            note: "手動拆拍後半",
+            lowConfidence: false
+          };
+          cur.end = Number((splitPoint - 0.1).toFixed(1));
+          RALLIES.splice(containingIdx + 1, 0, secondHalf);
+          currentRallyIdx = containingIdx + 1;
+          populatePhysicalObservationsFromWinners(RALLIES, matchStartNear, matchStartFar);
+          recomputeScores();
+          document.getElementById("anchorNear").value = RALLIES[RALLIES.length - 1].nearAfter;
+          document.getElementById("anchorFar").value = RALLIES[RALLIES.length - 1].farAfter;
+          syncDynamicMatchKpis();
+          renderAll();
+          jumpToRally(currentRallyIdx);
+          return;
+        }
+      }
+
+      // Case 2: Insert inside the nearest available dead-time gap without overlapping neighbors
+      let probeT = centerT;
+      if (containingIdx !== -1) {
+        const cur = RALLIES[containingIdx];
+        probeT = (cur.end + 1.6 <= maxDur) ? cur.end + 1.5 : Math.max(0.5, cur.start - 1.5);
+      }
+
+      let insertIdx = RALLIES.findIndex((r) => r.start > probeT);
+      if (insertIdx === -1) insertIdx = RALLIES.length;
+      const minBound = insertIdx > 0 ? RALLIES[insertIdx - 1].end + 0.1 : 0.0;
+      const maxBound = insertIdx < RALLIES.length ? RALLIES[insertIdx].start - 0.1 : maxDur;
+
+      if (maxBound - minBound < 0.9) {
+        showQuotaErrorBanner("⚠️ 此位置前後回合緊鄰，請將播放軸移至空白區段或回合中間再點擊加拍。");
+        return;
+      }
+
+      const start = Number(Math.max(minBound, Math.min(maxBound - 0.9, probeT - 1.2)).toFixed(1));
+      const end = Number(Math.min(maxBound, Math.max(start + 0.9, probeT + 2.1)).toFixed(1));
+
+      const newRally = {
+        rally: RALLIES.length + 1,
+        start,
+        end,
+        winner: "near",
+        obsHandoff: "near",
+        note: "手動新增回合",
+        lowConfidence: false
+      };
+
+      RALLIES.splice(insertIdx, 0, newRally);
+      currentRallyIdx = insertIdx;
+
+      populatePhysicalObservationsFromWinners(RALLIES, matchStartNear, matchStartFar);
+      recomputeScores();
+      document.getElementById("anchorNear").value = RALLIES[RALLIES.length - 1].nearAfter;
+      document.getElementById("anchorFar").value = RALLIES[RALLIES.length - 1].farAfter;
+      syncDynamicMatchKpis();
+      renderAll();
+      jumpToRally(insertIdx);
+    }
+
+    function resetToBuiltInDemoMatch() {
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+      if (currentVideoObjectUrl) {
+        try { URL.revokeObjectURL(currentVideoObjectUrl); } catch (_) {}
+        currentVideoObjectUrl = null;
+      }
+      currentLocalFile = null;
+      cachedAudioBuffer = null;
+      lastSignalProfile = null;
+      hasLocalVideoLoaded = false;
+      localVideoDurationSec = 580;
+      matchStartNear = 0;
+      matchStartFar = 0;
+      currentRallyIdx = 0;
+
+      RALLIES = cloneDemoRallies();
+      initPhysicalObservations();
+      document.getElementById("anchorNear").value = 16;
+      document.getElementById("anchorFar").value = 21;
+      document.getElementById("exportScopeSelect").value = "highlights_5";
+      document.getElementById("resetDemoMatchBtn").style.display = "none";
+      document.getElementById("videoSourceStatusBadge").textContent = "內建雙打示範";
+      video.style.display = "none";
+      courtSimCanvas.style.display = "block";
+
+      recomputeScores();
+      syncDynamicMatchKpis();
+      updateCutEngineLabelUI("demo", RALLIES.length);
+      renderAll();
+      updateLiveScoreboard(33.0);
+    }
+
+    async function analyzeMatchVideoWithQuota({
+      videoName = "match.mp4",
+      durationSec = 580,
+      contactFrames = [],
+      clientDetectedRallies = null,
+      audioPeaks = []
+    }) {
       if (!currentUser || !currentUser.userId) {
         openAuthGateModal();
         return { ok: false, reason: "AUTH_REQUIRED", message: "請先使用 Google 帳號登入後再分析影片。" };
@@ -2567,9 +3577,14 @@
             email: currentUser.email,
             videoName,
             durationSec: Number(durationSec),
-            contactFrames
+            contactFrames,
+            clientDetectedRallies,
+            audioPeaks
           })
         });
+        if (resp.status === 404 || resp.status === 405) {
+          throw new Error("STATIC_HOST_NO_API");
+        }
         const data = await resp.json();
         if (!resp.ok || !data.ok) {
           if (resp.status === 401 || data.reason === "AUTH_REQUIRED") {
@@ -2587,14 +3602,19 @@
           return data;
         }
 
-        if (Array.isArray(data.rallies) && data.rallies.length === RALLIES.length) {
-          for (let i = 0; i < RALLIES.length; i++) {
-            RALLIES[i].start = data.rallies[i].start;
-            RALLIES[i].end = data.rallies[i].end;
-            RALLIES[i].winner = data.rallies[i].winner;
-            RALLIES[i].note = data.rallies[i].note;
-            RALLIES[i].lowConfidence = false;
-          }
+        if (Array.isArray(data.rallies) && data.rallies.length >= 1) {
+          RALLIES = data.rallies.map((item, i) => ({
+            rally: i + 1,
+            start: Number(item.start),
+            end: Number(item.end),
+            winner: item.winner === "far" ? "far" : "near",
+            obsHandoff: item.winner === "far" ? "far" : "near",
+            note: item.note || `第 ${i + 1} 拍`,
+            lowConfidence: false
+          }));
+          matchStartNear = 0;
+          matchStartFar = 0;
+          populatePhysicalObservationsFromWinners(RALLIES, 0, 0);
         }
         if (typeof data.deadTimeSavedSec === "number") {
           const mins = String(Math.floor(data.deadTimeSavedSec / 60)).padStart(2, "0");
@@ -2612,93 +3632,153 @@
         }
         document.getElementById("quotaErrorBanner").style.display = "none";
         recomputeScores();
+        if (hasLocalVideoLoaded && RALLIES.length > 0) {
+          document.getElementById("anchorNear").value = RALLIES[RALLIES.length - 1].nearAfter;
+          document.getElementById("anchorFar").value = RALLIES[RALLIES.length - 1].farAfter;
+        }
+        syncDynamicMatchKpis();
         renderAll();
         return data;
       } catch (_) {
-        // Static GitHub Pages fallback
+        // Static GitHub Pages fallback: keep exact browser-detected RALLIES and update local quota counter
+        try {
+          const todayTw = getClientTaiwanDateStr();
+          const rawLocal = localStorage.getItem("nopick_tw_daily_quota_v1");
+          const parsed = rawLocal ? JSON.parse(rawLocal) : { dateTw: todayTw, claimedUsers: [], count: 0 };
+          if (parsed.dateTw !== todayTw) {
+            parsed.dateTw = todayTw;
+            parsed.claimedUsers = [];
+            parsed.count = 0;
+          }
+          if (currentUser && !parsed.claimedUsers.includes(currentUser.userId)) {
+            parsed.claimedUsers.push(currentUser.userId);
+            parsed.count = (parsed.count || 0) + 1;
+            localStorage.setItem("nopick_tw_daily_quota_v1", JSON.stringify(parsed));
+            refreshDailyQuotaSnapshot();
+          }
+        } catch (_) {}
         runFiveTupleViterbiSolver();
-        return { ok: true, engine: "local-viterbi-fallback" };
+        return { ok: true, engine: "local-dual-dsp-viterbi" };
       }
     }
 
     async function handleLocalVideoSelect(event) {
-      const file = event.target.files && event.target.files[0];
+      const inputEl = event.target;
+      const file = inputEl && inputEl.files && inputEl.files[0];
       if (!file) return;
 
-      if (!currentUser || !currentUser.userId) {
-        openAuthGateModal();
-        return;
-      }
-
-      const objUrl = URL.createObjectURL(file);
-      video.src = objUrl;
-
-      // Wait for video metadata to read actual duration (<= 30 mins check)
-      const durationSec = await new Promise((resolve) => {
-        const onMeta = () => {
-          cleanup();
-          resolve(Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 540);
-        };
-        const onErr = () => {
-          cleanup();
-          resolve(540);
-        };
-        const timer = setTimeout(() => {
-          cleanup();
-          resolve(540);
-        }, 1500);
-        function cleanup() {
-          clearTimeout(timer);
-          video.removeEventListener("loadedmetadata", onMeta);
-          video.removeEventListener("error", onErr);
+      try {
+        if (!currentUser || !currentUser.userId) {
+          openAuthGateModal();
+          return;
         }
-        video.addEventListener("loadedmetadata", onMeta);
-        video.addEventListener("error", onErr);
-      });
 
-      if (durationSec > 1800) {
-        showQuotaErrorBanner(`⚠️ 單場影片長度上限為 30 分鐘（您選取的影片為 ${(durationSec / 60).toFixed(1)} 分鐘），請先裁切單局後再試。`);
-        video.removeAttribute("src");
-        return;
-      }
-
-      hasLocalVideoLoaded = true;
-      courtSimCanvas.style.display = "none";
-      video.style.display = "block";
-      document.getElementById("videoSourceStatusBadge").textContent = `📹 ${file.name.slice(0, 14)}`;
-
-      const progBox = document.getElementById("analysisProgressBox");
-      const progBar = document.getElementById("analysisProgressBar");
-      const progTxt = document.getElementById("analysisProgressText");
-      const progPct = document.getElementById("analysisProgressPct");
-      progBox.style.display = "flex";
-
-      const sampler = document.getElementById("samplerCanvas");
-      const sctx = sampler.getContext("2d");
-      const contactFrames = [];
-
-      for (let i = 0; i <= 100; i += 25) {
-        progBar.style.width = `${i}%`;
-        progPct.textContent = `${i}%`;
-        progTxt.textContent = `本機擷取關鍵影格網格並呼叫 Gemini 2.5 Flash 對齊比分...`;
-        if (video.readyState >= 2) {
-          try {
-            sctx.drawImage(video, 0, 0, 320, 180);
-            contactFrames.push(sampler.toDataURL("image/jpeg", 0.6));
-          } catch (_) {}
+        if (currentVideoObjectUrl) {
+          try { URL.revokeObjectURL(currentVideoObjectUrl); } catch (_) {}
+          currentVideoObjectUrl = null;
         }
-        await new Promise(r => setTimeout(r, 40));
+
+        const objUrl = URL.createObjectURL(file);
+        currentVideoObjectUrl = objUrl;
+        currentLocalFile = file;
+        video.src = objUrl;
+
+        // Wait for video metadata to read actual duration (<= 30 mins check)
+        const durationSec = await new Promise((resolve) => {
+          if (Number.isFinite(video.duration) && video.duration > 0) {
+            resolve(video.duration);
+            return;
+          }
+          const onMeta = () => {
+            cleanup();
+            resolve(Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 540);
+          };
+          const onErr = () => {
+            cleanup();
+            resolve(540);
+          };
+          const timer = setTimeout(() => {
+            cleanup();
+            resolve(540);
+          }, 2500);
+          function cleanup() {
+            clearTimeout(timer);
+            video.removeEventListener("loadedmetadata", onMeta);
+            video.removeEventListener("error", onErr);
+          }
+          video.addEventListener("loadedmetadata", onMeta);
+          video.addEventListener("error", onErr);
+        });
+
+        if (durationSec > 1800) {
+          showQuotaErrorBanner(`⚠️ 單場影片長度上限為 30 分鐘（您選取的影片為 ${(durationSec / 60).toFixed(1)} 分鐘），請先裁切單局後再試。`);
+          video.removeAttribute("src");
+          try { URL.revokeObjectURL(objUrl); } catch (_) {}
+          currentVideoObjectUrl = null;
+          return;
+        }
+
+        localVideoDurationSec = durationSec;
+        hasLocalVideoLoaded = true;
+        matchStartNear = 0;
+        matchStartFar = 0;
+        currentRallyIdx = 0;
+        courtSimCanvas.style.display = "none";
+        video.style.display = "block";
+        document.getElementById("resetDemoMatchBtn").style.display = "inline-flex";
+        document.getElementById("videoSourceStatusBadge").textContent = `📹 ${file.name.slice(0, 14)}`;
+
+        const progBox = document.getElementById("analysisProgressBox");
+        const progBar = document.getElementById("analysisProgressBar");
+        const progTxt = document.getElementById("analysisProgressText");
+        const progPct = document.getElementById("analysisProgressPct");
+        progBox.style.display = "flex";
+
+        const updateProg = (pct, msg) => {
+          progBar.style.width = `${pct}%`;
+          progPct.textContent = `${pct}%`;
+          progTxt.textContent = msg;
+        };
+
+        updateProg(4, "🎬 正在載入球賽影片並初始化本機雙模剪輯引擎...");
+        const dspResult = await analyzeLocalVideoRalliesDSP(file, video, durationSec, updateProg);
+
+        RALLIES = dspResult.rallies;
+        recomputeScores();
+        document.getElementById("anchorNear").value = RALLIES[RALLIES.length - 1].nearAfter;
+        document.getElementById("anchorFar").value = RALLIES[RALLIES.length - 1].farAfter;
+        document.getElementById("exportScopeSelect").value = "all_37";
+        syncDynamicMatchKpis();
+        updateCutEngineLabelUI(dspResult.engineMode, RALLIES.length);
+        renderAll();
+
+        updateProg(95, "☁️ 正在同步分數規則鎖定與免費場次額度...");
+        await analyzeMatchVideoWithQuota({
+          videoName: file.name,
+          durationSec,
+          contactFrames: dspResult.contactFrames,
+          clientDetectedRallies: RALLIES,
+          audioPeaks: dspResult.audioPeaks
+        });
+
+        updateProg(100, `✅ 已精準抓出 ${RALLIES.length} 拍回合並剪除所有撿球空白！`);
+        if (RALLIES[0]) {
+          await seekVideoSafe(video, RALLIES[0].start, 300);
+          updateLiveScoreboard(RALLIES[0].start);
+        }
+
+        const badge = document.getElementById("kpiAccuracyBadge");
+        if (badge) {
+          badge.className = "pill pill-emerald";
+          badge.textContent = `${RALLIES.length}/${RALLIES.length} 拍已鎖定`;
+        }
+
+        setTimeout(() => {
+          progBox.style.display = "none";
+        }, 450);
+      } finally {
+        if (inputEl) inputEl.value = "";
       }
-
-      await analyzeMatchVideoWithQuota({
-        videoName: file.name,
-        durationSec,
-        contactFrames
-      });
-
-      setTimeout(() => {
-        progBox.style.display = "none";
-      }, 350);
     }
 
     let microfilmFallbackTimer = null;
@@ -2766,7 +3846,9 @@
     }
 
     function setWinner(idx, winnerSide) {
+      if (!RALLIES[idx]) return;
       RALLIES[idx].winner = winnerSide;
+      RALLIES[idx].obsHandoff = winnerSide;
       RALLIES[idx].lowConfidence = false;
       recomputeScores();
       renderAll();
@@ -2774,8 +3856,10 @@
     }
 
     function jumpToRally(idx) {
+      if (!RALLIES[idx]) return;
       currentRallyIdx = idx;
       if (hasLocalVideoLoaded) {
+        lastAutoSkipMs = performance.now();
         video.currentTime = RALLIES[idx].start;
         video.play().catch(() => {});
       } else {
@@ -2810,16 +3894,20 @@
     }
 
     function formatTime(sec) {
-      const m = Math.floor(sec / 60);
-      const s = Math.floor(sec % 60).toString().padStart(2, "0");
+      const safe = Math.max(0, Number(sec) || 0);
+      const m = Math.floor(safe / 60);
+      const s = Math.floor(safe % 60).toString().padStart(2, "0");
       return `${m}:${s}`;
+    }
+
+    function formatTimeWindow(startSec, endSec) {
+      return `${formatTime(startSec)}–${formatTime(endSec)} (${Math.max(0.5, endSec - startSec).toFixed(1)}s)`;
     }
 
     // Visual Mini Badminton Court SVG (Replaces dense technical text with an instant court diagram!)
     function renderMiniCourtSvg(r) {
       const winScore = r.winner === "near" ? r.nearAfter : r.farAfter;
       const isEven = (winScore % 2 === 0);
-      // Highlight winning server's next service box (Near bottom half vs Far top half)
       let hlX = 2, hlY = 2;
       if (r.winner === "near") {
         hlX = isEven ? 22 : 2;
@@ -2846,7 +3934,7 @@
       const strip = document.getElementById("rallyStrip");
       strip.innerHTML = RALLIES.map((r, i) => `
         <div class="rally-tick ${r.lowConfidence ? 'low-conf' : (r.winner === 'near' ? 'win-near' : 'win-far')} ${i === currentRallyIdx ? 'active' : ''}"
-             title="第 ${r.rally} 拍 (${r.nearAfter}:${r.farAfter})"
+             title="第 ${r.rally} 拍 · ${formatTimeWindow(r.start, r.end)} (${r.nearAfter}:${r.farAfter})"
              onclick="jumpToRally(${i})"></div>
       `).join("");
 
@@ -2855,24 +3943,33 @@
         <tr class="${i === currentRallyIdx ? 'active-row' : ''}" onclick="jumpToRally(${i})" style="cursor:pointer;">
           <td class="num" style="font-weight:800; color:var(--text-primary);">
             #${r.rally}
-            <div style="font-size:11px; font-weight:500; color:var(--text-secondary);">${formatTime(r.start)}</div>
+            <div style="font-size:11px; font-weight:500; color:var(--text-secondary); white-space:nowrap;">${formatTime(r.start)}–${formatTime(r.end)}</div>
           </td>
           <td>
             <div class="mini-court-cell">
               ${renderMiniCourtSvg(r)}
-              <div style="display:flex; flex-direction:column; gap:2px;">
-                <span style="font-size:12px; font-weight:600; color:var(--text-primary);">${r.note}</span>
-                <div>
+              <div style="display:flex; flex-direction:column; gap:3px;">
+                <span style="font-size:12px; font-weight:600; color:var(--text-primary);">${escapeHtml(r.note)}</span>
+                <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
                   ${r.didSwapLR ? '<span class="swap-chip">⇄ 換邊</span>' : ''}
                   ${r.lowConfidence ? '<span class="warn-chip">⚠️ 待確認</span>' : ''}
                 </div>
+                ${i === currentRallyIdx ? `
+                  <div class="seg-trim-row" onclick="event.stopPropagation();">
+                    <button type="button" class="mini-trim-btn" onclick="nudgeRallyTime(${i}, 'start', -0.5)" title="提早 0.5 秒開拍">起-0.5s</button>
+                    <button type="button" class="mini-trim-btn" onclick="nudgeRallyTime(${i}, 'start', 0.5)" title="延後 0.5 秒開拍">起+0.5s</button>
+                    <button type="button" class="mini-trim-btn" onclick="nudgeRallyTime(${i}, 'end', -0.5)" title="提早 0.5 秒結束">迄-0.5s</button>
+                    <button type="button" class="mini-trim-btn" onclick="nudgeRallyTime(${i}, 'end', 0.5)" title="延後 0.5 秒結束">迄+0.5s</button>
+                  </div>
+                ` : ''}
               </div>
             </div>
           </td>
           <td onclick="event.stopPropagation();">
-            <div style="display:flex; gap:6px;">
+            <div style="display:flex; gap:5px; align-items:center;">
               <button class="win-btn ${r.winner === 'near' ? 'selected-near' : ''}" onclick="setWinner(${i}, 'near')">藍隊 +1</button>
               <button class="win-btn ${r.winner === 'far' ? 'selected-far' : ''}" onclick="setWinner(${i}, 'far')">綠隊 +1</button>
+              <button type="button" class="mini-trim-btn danger" onclick="deleteRallySegment(${i})" title="刪除此誤判片段（例如撿球段）">🗑️</button>
             </div>
           </td>
           <td class="num" style="font-size:17px; font-weight:800; white-space:nowrap;">
@@ -2890,9 +3987,9 @@
             <div class="mini-court-cell">
               ${renderMiniCourtSvg(r)}
               <div>
-                <div style="font-size:14px; font-weight:800;">#${r.rally} · ${r.note}</div>
+                <div style="font-size:14px; font-weight:800;">#${r.rally} · ${escapeHtml(r.note)}</div>
                 <div style="font-size:12px; color:var(--text-secondary);">
-                  ${formatTime(r.start)} ${r.didSwapLR ? '· ⇄ 連得換邊' : ''} ${r.lowConfidence ? '· ⚠️ 待確認' : ''}
+                  ${formatTimeWindow(r.start, r.end)} ${r.didSwapLR ? '· ⇄ 連得換邊' : ''} ${r.lowConfidence ? '· ⚠️ 待確認' : ''}
                 </div>
               </div>
             </div>
@@ -2901,19 +3998,42 @@
           <div class="rc-actions" onclick="event.stopPropagation();">
             <button class="win-btn ${r.winner === 'near' ? 'selected-near' : ''}" onclick="setWinner(${i}, 'near')">👕 藍隊 +1</button>
             <button class="win-btn ${r.winner === 'far' ? 'selected-far' : ''}" onclick="setWinner(${i}, 'far')">👕 綠隊 +1</button>
+            <button type="button" class="mini-trim-btn danger" style="min-height:42px; padding:0 12px;" onclick="deleteRallySegment(${i})" title="刪除此片段">🗑️</button>
           </div>
+          ${i === currentRallyIdx ? `
+            <div class="seg-trim-row" onclick="event.stopPropagation();">
+              <button type="button" class="mini-trim-btn" onclick="nudgeRallyTime(${i}, 'start', -0.5)">起 -0.5s</button>
+              <button type="button" class="mini-trim-btn" onclick="nudgeRallyTime(${i}, 'start', 0.5)">起 +0.5s</button>
+              <button type="button" class="mini-trim-btn" onclick="nudgeRallyTime(${i}, 'end', -0.5)">迄 -0.5s</button>
+              <button type="button" class="mini-trim-btn" onclick="nudgeRallyTime(${i}, 'end', 0.5)">迄 +0.5s</button>
+            </div>
+          ` : ''}
         </div>
       `).join("");
     }
 
     function updateLiveScoreboard(t) {
-      let idx = RALLIES.findIndex(r => t >= r.start - 0.5 && t <= r.end + 0.3);
+      if (!Array.isArray(RALLIES) || RALLIES.length === 0) return;
+
+      let idx = RALLIES.findIndex((r) => t >= r.start - 0.08 && t <= r.end + 0.08);
       if (idx === -1) {
-        const nextIdx = RALLIES.findIndex(r => r.start > t);
-        if (skipDeadTime && hasLocalVideoLoaded && !video.paused && nextIdx !== -1) {
-          video.currentTime = RALLIES[nextIdx].start;
-          idx = nextIdx;
-        } else {
+        const nextIdx = RALLIES.findIndex((r) => r.start > t);
+        if (skipDeadTime && hasLocalVideoLoaded && !video.paused && !isExportingMp4) {
+          const nowMs = performance.now();
+          if (!video.seeking && (nowMs - lastAutoSkipMs > 180)) {
+            if (nextIdx !== -1) {
+              lastAutoSkipMs = nowMs;
+              video.currentTime = RALLIES[nextIdx].start;
+              idx = nextIdx;
+            } else if (t > RALLIES[RALLIES.length - 1].end + 0.10) {
+              lastAutoSkipMs = nowMs;
+              video.pause();
+              video.currentTime = RALLIES[RALLIES.length - 1].end;
+              idx = RALLIES.length - 1;
+            }
+          }
+        }
+        if (idx === -1) {
           idx = nextIdx !== -1 ? Math.max(0, nextIdx - 1) : RALLIES.length - 1;
         }
       }
@@ -2924,7 +4044,9 @@
       }
 
       const r = RALLIES[idx];
-      const scoredMoment = t >= (r.end - 1.3);
+      if (!r) return;
+      const scoredLead = Math.min(1.2, Math.max(0.35, (r.end - r.start) * 0.25));
+      const scoredMoment = t >= (r.end - scoredLead);
       const nearPts = scoredMoment ? r.nearAfter : r.nearBefore;
       const farPts = scoredMoment ? r.farAfter : r.farBefore;
       const activeServer = scoredMoment ? r.winner : r.server;
@@ -2959,7 +4081,9 @@
       }
     }
 
-    video.addEventListener("timeupdate", () => updateLiveScoreboard(video.currentTime));
+    video.addEventListener("timeupdate", () => {
+      if (!isExportingMp4) updateLiveScoreboard(video.currentTime);
+    });
 
     // ============================================================================
     // Bright Sunlit Badminton Hall 3D Court Simulator
@@ -3010,7 +4134,7 @@
         return [px, py];
       }
 
-      // 2. Vibrant Emerald BWF PVC Court Mat
+      // 2. Vibrant Emerald Tournament PVC Court Mat
       ctx.save();
       ctx.shadowColor = "rgba(15, 23, 42, 0.16)";
       ctx.shadowBlur = 24;
@@ -3337,20 +4461,25 @@
             video.style.display = "none";
             courtSimCanvas.style.display = "block";
           }
-          if (simPlaying) {
-            simRallyProgress += dt * 0.28;
-            if (simRallyProgress >= 1.0) {
-              simRallyProgress = 0.0;
-              if (skipDeadTime) {
-                currentRallyIdx = (currentRallyIdx + 1) % RALLIES.length;
-                renderAll();
+          if (RALLIES.length > 0) {
+            if (simPlaying) {
+              simRallyProgress += dt * 0.28;
+              if (simRallyProgress >= 1.0) {
+                simRallyProgress = 0.0;
+                if (skipDeadTime) {
+                  currentRallyIdx = (currentRallyIdx + 1) % RALLIES.length;
+                  renderAll();
+                }
               }
             }
+            const r = RALLIES[currentRallyIdx] || RALLIES[0];
+            const virtTime = r.start + (r.end - r.start) * simRallyProgress;
+            updateLiveScoreboard(virtTime);
+            drawBadmintonCourtScene(sctx, courtSimCanvas.width, courtSimCanvas.height, r, simRallyProgress);
           }
-          const r = RALLIES[currentRallyIdx];
-          const virtTime = r.start + (r.end - r.start) * simRallyProgress;
-          updateLiveScoreboard(virtTime);
-          drawBadmintonCourtScene(sctx, courtSimCanvas.width, courtSimCanvas.height, r, simRallyProgress);
+        } else if (!isExportingMp4 && !video.paused) {
+          // 60Hz frame-accurate dead-time skipping & live scoreboard tracking
+          updateLiveScoreboard(video.currentTime);
         }
         requestAnimationFrame(tick);
       }
@@ -3358,7 +4487,7 @@
     }
 
     // ============================================================================
-    // Pure-JS ISO-BMFF (.mp4) Faststart Muxer for WebCodecs H.264 (avc1)
+    // Pure-JS Dual-Track ISO-BMFF (.mp4) Faststart Muxer (avc1 Video + mp4a/Opus Audio)
     // ============================================================================
     class NoPickMp4Muxer {
       static strToBytes(str) {
@@ -3406,11 +4535,159 @@
         return NoPickMp4Muxer.box(typeStr, vf, ...payloads);
       }
 
-      static buildMp4({ width, height, fps, avcCBytes, samples }) {
+      static buildEsdsBox(ascBytes) {
+        const M = NoPickMp4Muxer;
+        const asc = (ascBytes && ascBytes.byteLength > 0)
+          ? ascBytes
+          : new Uint8Array([0x11, 0x90]); // AAC-LC 48kHz stereo
+        const tag5 = M.concat(new Uint8Array([0x05, asc.byteLength]), asc);
+        const tag4Body = M.concat(
+          new Uint8Array([
+            0x40, // Audio ISO/IEC 14496-3
+            0x15, // audioStream
+            0x00, 0x00, 0x00, // bufferSizeDB
+            0x00, 0x01, 0xf4, 0x00, // maxBitrate 128kbps
+            0x00, 0x01, 0xf4, 0x00  // avgBitrate 128kbps
+          ]),
+          tag5
+        );
+        const tag4 = M.concat(new Uint8Array([0x04, tag4Body.byteLength]), tag4Body);
+        const tag6 = new Uint8Array([0x06, 0x01, 0x02]);
+        const tag3Body = M.concat(new Uint8Array([0x00, 0x02, 0x00]), tag4, tag6);
+        const tag3 = M.concat(new Uint8Array([0x03, tag3Body.byteLength]), tag3Body);
+        return M.fullBox("esds", 0, 0, tag3);
+      }
+
+      static buildDopsBox(channelCount, sampleRate, opusHeadBytes) {
+        const M = NoPickMp4Muxer;
+        let preSkip = 312;
+        if (
+          opusHeadBytes &&
+          opusHeadBytes.byteLength >= 12 &&
+          opusHeadBytes[0] === 0x4f &&
+          opusHeadBytes[1] === 0x70
+        ) {
+          preSkip = opusHeadBytes[10] | (opusHeadBytes[11] << 8);
+        }
+        return M.box(
+          "dOps",
+          new Uint8Array([
+            0, // Version 0 per Opus ISO-BMFF spec
+            channelCount & 0xff,
+            (preSkip >>> 8) & 0xff,
+            preSkip & 0xff,
+            (sampleRate >>> 24) & 0xff,
+            (sampleRate >>> 16) & 0xff,
+            (sampleRate >>> 8) & 0xff,
+            sampleRate & 0xff,
+            0, 0, // OutputGain 0
+            0     // ChannelMappingFamily 0
+          ])
+        );
+      }
+
+      static buildAudioTrak(audioTrack, audioChunkOffsets, movieTimescale, matrix) {
+        const M = NoPickMp4Muxer;
+        const sr = audioTrack.sampleRate || 48000;
+        const ch = audioTrack.channelCount || 2;
+        const aSamples = audioTrack.samples;
+
+        let totalAudioSamples = 0;
+        const sttsRuns = [];
+        for (const s of aSamples) {
+          const delta = Math.max(1, s.sampleCount || 960);
+          totalAudioSamples += delta;
+          const prev = sttsRuns[sttsRuns.length - 1];
+          if (prev && prev.delta === delta) prev.count++;
+          else sttsRuns.push({ count: 1, delta });
+        }
+
+        const movieDur = Math.round((totalAudioSamples / sr) * movieTimescale);
+        const tkhd = M.fullBox(
+          "tkhd", 0, 0x000003,
+          M.u32(0), M.u32(0),
+          M.u32(2), // track_ID = 2
+          M.u32(0),
+          M.u32(movieDur),
+          new Uint8Array(8),
+          M.u16(0), M.u16(0),
+          M.u16(0x0100), M.u16(0),
+          matrix,
+          M.u32(0), M.u32(0)
+        );
+
+        const mdhd = M.fullBox(
+          "mdhd", 0, 0,
+          M.u32(0), M.u32(0),
+          M.u32(sr),
+          M.u32(totalAudioSamples),
+          M.u16(0x55c4),
+          M.u16(0)
+        );
+
+        const hdlr = M.fullBox(
+          "hdlr", 0, 0,
+          M.u32(0),
+          M.strToBytes("soun"),
+          new Uint8Array(12),
+          M.strToBytes("NoPick.tw WebCodecs AudioHandler\0")
+        );
+
+        const smhd = M.fullBox("smhd", 0, 0, M.u16(0), M.u16(0));
+        const dref = M.fullBox("dref", 0, 0, M.u32(1), M.fullBox("url ", 0, 1));
+        const dinf = M.box("dinf", dref);
+
+        let sampleEntry;
+        if (audioTrack.codec === "mp4a") {
+          sampleEntry = M.box(
+            "mp4a",
+            new Uint8Array(6),
+            M.u16(1),
+            new Uint8Array(8),
+            M.u16(ch),
+            M.u16(16),
+            M.u16(0), M.u16(0),
+            M.u32((sr << 16) >>> 0),
+            M.buildEsdsBox(audioTrack.descriptionBytes)
+          );
+        } else {
+          sampleEntry = M.box(
+            "Opus",
+            new Uint8Array(6),
+            M.u16(1),
+            new Uint8Array(8),
+            M.u16(ch),
+            M.u16(16),
+            M.u16(0), M.u16(0),
+            M.u32((sr << 16) >>> 0),
+            M.buildDopsBox(ch, sr, audioTrack.descriptionBytes)
+          );
+        }
+
+        const stsd = M.fullBox("stsd", 0, 0, M.u32(1), sampleEntry);
+        const sttsPayloads = [];
+        for (const r of sttsRuns) {
+          sttsPayloads.push(M.u32(r.count), M.u32(r.delta));
+        }
+        const stts = M.fullBox("stts", 0, 0, M.u32(sttsRuns.length), ...sttsPayloads);
+        const stsc = M.fullBox("stsc", 0, 0, M.u32(1), M.u32(1), M.u32(1), M.u32(1));
+        const szEntries = aSamples.map((s) => M.u32(s.data.byteLength));
+        const stsz = M.fullBox("stsz", 0, 0, M.u32(0), M.u32(aSamples.length), ...szEntries);
+        const coEntries = audioChunkOffsets.map((off) => M.u32(off));
+        const stco = M.fullBox("stco", 0, 0, M.u32(audioChunkOffsets.length), ...coEntries);
+
+        const stbl = M.box("stbl", stsd, stts, stsc, stsz, stco);
+        const minf = M.box("minf", smhd, dinf, stbl);
+        const mdia = M.box("mdia", mdhd, hdlr, minf);
+        return M.box("trak", tkhd, mdia);
+      }
+
+      static buildMp4({ width, height, fps, avcCBytes, samples, audioTrack = null }) {
         const M = NoPickMp4Muxer;
         const timescale = 60000;
         const sampleDelta = Math.round(timescale / fps);
         const totalDuration = samples.length * sampleDelta;
+        const hasAudio = Boolean(audioTrack && Array.isArray(audioTrack.samples) && audioTrack.samples.length > 0);
 
         const ftyp = M.box(
           "ftyp",
@@ -3423,7 +4700,7 @@
           ? avcCBytes
           : new Uint8Array([1, 0x64, 0x00, 0x2a, 0xff, 0xe1, 0x00, 0x04, 0x67, 0x64, 0x00, 0x2a, 0x01, 0x00, 0x04, 0x68, 0xeb, 0xef, 0x20]);
 
-        const buildMoovWithOffsets = (chunkOffsets) => {
+        const buildMoovWithOffsets = (videoOffsets, audioOffsets) => {
           const matrix = M.concat(
             M.u32(0x00010000), M.u32(0), M.u32(0),
             M.u32(0), M.u32(0x00010000), M.u32(0),
@@ -3440,7 +4717,7 @@
             new Uint8Array(10),
             matrix,
             new Uint8Array(24),
-            M.u32(2)
+            M.u32(hasAudio ? 3 : 2)
           );
 
           const tkhd = M.fullBox(
@@ -3512,31 +4789,49 @@
           const stss = M.fullBox("stss", 0, 0, M.u32(keyIndices.length), ...keyIndices);
           const stsc = M.fullBox("stsc", 0, 0, M.u32(1), M.u32(1), M.u32(1), M.u32(1));
 
-          const szEntries = samples.map(s => M.u32(s.data.byteLength));
+          const szEntries = samples.map((s) => M.u32(s.data.byteLength));
           const stsz = M.fullBox("stsz", 0, 0, M.u32(0), M.u32(samples.length), ...szEntries);
 
-          const coEntries = chunkOffsets.map(off => M.u32(off));
-          const stco = M.fullBox("stco", 0, 0, M.u32(chunkOffsets.length), ...coEntries);
+          const coEntries = videoOffsets.map((off) => M.u32(off));
+          const stco = M.fullBox("stco", 0, 0, M.u32(videoOffsets.length), ...coEntries);
 
           const stbl = M.box("stbl", stsd, stts, stss, stsc, stsz, stco);
           const minf = M.box("minf", vmhd, dinf, stbl);
           const mdia = M.box("mdia", mdhd, hdlr, minf);
-          const trak = M.box("trak", tkhd, mdia);
-          return M.box("moov", mvhd, trak);
+          const videoTrak = M.box("trak", tkhd, mdia);
+
+          if (!hasAudio) {
+            return M.box("moov", mvhd, videoTrak);
+          }
+          const audioTrak = M.buildAudioTrak(audioTrack, audioOffsets, timescale, matrix);
+          return M.box("moov", mvhd, videoTrak, audioTrak);
         };
 
-        const dummyOffsets = new Array(samples.length).fill(0);
-        const dummyMoov = buildMoovWithOffsets(dummyOffsets);
+        const dummyVideoOffsets = new Array(samples.length).fill(0);
+        const dummyAudioOffsets = hasAudio ? new Array(audioTrack.samples.length).fill(0) : [];
+        const dummyMoov = buildMoovWithOffsets(dummyVideoOffsets, dummyAudioOffsets);
         const mdatDataStart = ftyp.byteLength + dummyMoov.byteLength + 8;
 
-        const realOffsets = [];
+        const realVideoOffsets = [];
         let cursor = mdatDataStart;
         for (const s of samples) {
-          realOffsets.push(cursor);
+          realVideoOffsets.push(cursor);
           cursor += s.data.byteLength;
         }
-        const moov = buildMoovWithOffsets(realOffsets);
-        const mdat = M.box("mdat", ...samples.map(s => s.data));
+        const realAudioOffsets = [];
+        if (hasAudio) {
+          for (const a of audioTrack.samples) {
+            realAudioOffsets.push(cursor);
+            cursor += a.data.byteLength;
+          }
+        }
+
+        const moov = buildMoovWithOffsets(realVideoOffsets, realAudioOffsets);
+        const mdatPayloads = samples.map((s) => s.data);
+        if (hasAudio) {
+          for (const a of audioTrack.samples) mdatPayloads.push(a.data);
+        }
+        const mdat = M.box("mdat", ...mdatPayloads);
         return M.concat(ftyp, moov, mdat);
       }
     }
@@ -3544,18 +4839,184 @@
     // ============================================================================
     // WebCodecs Hardware-Accelerated Synthesis & OPFS Export Pipeline
     // ============================================================================
+    function cancelWebCodecsExport() {
+      cancelExportRequested = true;
+    }
+
+    function drawLocalVideoContain(ctx, videoEl, W, H) {
+      ctx.fillStyle = "#0F172A";
+      ctx.fillRect(0, 0, W, H);
+      try {
+        const vw = videoEl.videoWidth || W;
+        const vh = videoEl.videoHeight || H;
+        const scale = Math.min(W / vw, H / vh);
+        const dw = Math.round(vw * scale);
+        const dh = Math.round(vh * scale);
+        const dx = Math.round((W - dw) * 0.5);
+        const dy = Math.round((H - dh) * 0.5);
+        ctx.drawImage(videoEl, dx, dy, dw, dh);
+      } catch (_) {}
+    }
+
+    async function encodeSplicedAudioTrack(audioSegments, outSr = 48000) {
+      if (!hasLocalVideoLoaded || !cachedAudioBuffer || !cachedAudioBuffer.data || cachedAudioBuffer.data.length === 0) {
+        return null;
+      }
+      if (typeof AudioEncoder === "undefined" || typeof AudioData === "undefined") {
+        return null;
+      }
+      if (!Array.isArray(audioSegments) || audioSegments.length === 0) {
+        return null;
+      }
+
+      let webCodecStr = null;
+      let muxCodec = null;
+      let chunkSamples = 960;
+      const candidates = [
+        { codec: "mp4a.40.2", mux: "mp4a", chunk: 1024 },
+        { codec: "opus", mux: "opus", chunk: 960 }
+      ];
+      for (const c of candidates) {
+        try {
+          const sup = await AudioEncoder.isConfigSupported({
+            codec: c.codec,
+            sampleRate: outSr,
+            numberOfChannels: 2,
+            bitrate: 128_000
+          });
+          if (sup && sup.supported) {
+            webCodecStr = c.codec;
+            muxCodec = c.mux;
+            chunkSamples = c.chunk;
+            break;
+          }
+        } catch (_) {}
+      }
+      if (!webCodecStr) return null;
+
+      // Build spliced mono PCM at outSr with 12ms raised-cosine anti-pop fades per rally
+      const totalOutLen = audioSegments.reduce((acc, seg) => acc + Math.max(0, Math.round(seg.durSec * outSr)), 0);
+      if (totalOutLen <= 0) return null;
+
+      const splicedMono = new Float32Array(totalOutLen);
+      const src = cachedAudioBuffer.data;
+      const srcSr = cachedAudioBuffer.sampleRate;
+      const srcMaxIdx = src.length - 1;
+      const fadeSamples = Math.round(outSr * 0.012);
+
+      let writePos = 0;
+      for (const seg of audioSegments) {
+        const segLen = Math.max(0, Math.round(seg.durSec * outSr));
+        const effFade = Math.min(fadeSamples, Math.floor(segLen * 0.25));
+        for (let i = 0; i < segLen; i++) {
+          const srcT = seg.startSec + i / outSr;
+          const exactIdx = srcT * srcSr;
+          let sample = 0;
+          if (exactIdx >= 0 && exactIdx < srcMaxIdx) {
+            const idx0 = Math.floor(exactIdx);
+            const frac = exactIdx - idx0;
+            sample = src[idx0] * (1 - frac) + src[idx0 + 1] * frac;
+          } else if (exactIdx >= 0 && exactIdx <= src.length) {
+            sample = src[Math.min(srcMaxIdx, Math.floor(exactIdx))] || 0;
+          }
+          if (effFade > 0) {
+            if (i < effFade) {
+              sample *= 0.5 * (1 - Math.cos((Math.PI * i) / effFade));
+            } else if (i >= segLen - effFade) {
+              const rem = segLen - 1 - i;
+              sample *= 0.5 * (1 - Math.cos((Math.PI * rem) / effFade));
+            }
+          }
+          splicedMono[writePos + i] = sample;
+        }
+        writePos += segLen;
+      }
+
+      const audioPackets = [];
+      let descriptionBytes = null;
+      let aenc = null;
+
+      try {
+        aenc = new AudioEncoder({
+          output: (chunk, meta) => {
+            if (meta && meta.decoderConfig && meta.decoderConfig.description) {
+              const d = meta.decoderConfig.description;
+              descriptionBytes = new Uint8Array(
+                d instanceof ArrayBuffer ? d : d.buffer.slice(d.byteOffset, d.byteOffset + d.byteLength)
+              );
+            }
+            const buf = new Uint8Array(chunk.byteLength);
+            chunk.copyTo(buf);
+            const sampleCount = chunk.duration
+              ? Math.max(1, Math.round((chunk.duration * outSr) / 1_000_000))
+              : chunkSamples;
+            audioPackets.push({ data: buf, sampleCount });
+          },
+          error: (err) => {
+            console.warn("WebCodecs AudioEncoder warning:", err);
+          }
+        });
+
+        aenc.configure({
+          codec: webCodecStr,
+          sampleRate: outSr,
+          numberOfChannels: 2,
+          bitrate: 128_000
+        });
+
+        const planarStereo = new Float32Array(chunkSamples * 2);
+        for (let offset = 0; offset < totalOutLen; offset += chunkSamples) {
+          if (cancelExportRequested) break;
+          const framesNow = Math.min(chunkSamples, totalOutLen - offset);
+          const bufNow = framesNow === chunkSamples ? planarStereo : new Float32Array(framesNow * 2);
+          bufNow.fill(0);
+          const sub = splicedMono.subarray(offset, offset + framesNow);
+          bufNow.set(sub, 0);
+          bufNow.set(sub, framesNow);
+
+          const ad = new AudioData({
+            format: "f32-planar",
+            sampleRate: outSr,
+            numberOfFrames: framesNow,
+            numberOfChannels: 2,
+            timestamp: Math.round((offset / outSr) * 1_000_000),
+            data: bufNow
+          });
+          aenc.encode(ad);
+          ad.close();
+        }
+
+        if (aenc.state === "configured") await aenc.flush();
+        if (aenc.state !== "closed") aenc.close();
+      } catch (err) {
+        console.warn("Audio muxing skipped:", err);
+        try { if (aenc && aenc.state !== "closed") aenc.close(); } catch (_) {}
+        return null;
+      }
+
+      if (audioPackets.length === 0) return null;
+      return {
+        codec: muxCodec,
+        sampleRate: outSr,
+        channelCount: 2,
+        descriptionBytes,
+        samples: audioPackets
+      };
+    }
+
     async function triggerWebCodecsExport(tierMode) {
-      if (isExportingMp4) return;
+      if (isExportingMp4 || RALLIES.length === 0) return;
 
       const isPro = (tierMode === "pro_1080p60");
       if (isPro && userWallet.proCredits <= 0) {
         openCreditsModal();
         document.getElementById("paymentStatusNotice").innerHTML =
-          `⚠️ <strong>Pro 點數已用完！</strong> 點擊上方任一方案即可免費模擬加點，或選左側「免費匯出 720p」。`;
+          `⚠️ <strong>Pro 場次額度已用完！</strong> 點擊上方任一綠界方案即可解鎖，或選左側「免費匯出 720p」。`;
         return;
       }
 
       isExportingMp4 = true;
+      cancelExportRequested = false;
       const tStart = performance.now();
 
       const W = isPro ? 1920 : 1280;
@@ -3567,15 +5028,18 @@
       const scopeVal = document.getElementById("exportScopeSelect").value;
       let targetRallies = [];
       if (scopeVal === "current_rally") {
-        targetRallies = [RALLIES[currentRallyIdx]];
+        targetRallies = [RALLIES[currentRallyIdx] || RALLIES[0]];
       } else if (scopeVal === "all_37") {
         targetRallies = RALLIES.slice();
-      } else {
+      } else if (!hasLocalVideoLoaded && RALLIES.length === 37) {
         targetRallies = [RALLIES[0], RALLIES[15], RALLIES[24], RALLIES[35], RALLIES[36]];
+      } else {
+        targetRallies = RALLIES
+          .slice()
+          .sort((a, b) => (b.end - b.start) - (a.end - a.start))
+          .slice(0, Math.min(5, RALLIES.length))
+          .sort((a, b) => a.start - b.start);
       }
-
-      const framesPerRally = scopeVal === "all_37" ? Math.round(fps * 0.35) : Math.round(fps * 0.9);
-      const totalFrames = targetRallies.length * framesPerRally;
 
       const progBox = document.getElementById("webcodecsProgressBox");
       const progBar = document.getElementById("webcodecsProgressBar");
@@ -3660,51 +5124,129 @@
 
       const frameDurationUs = Math.round(1_000_000 / fps);
       let globalFrameIdx = 0;
+      const audioSegments = [];
 
-      for (let rIdx = 0; rIdx < targetRallies.length; rIdx++) {
-        const r = targetRallies[rIdx];
-        for (let f = 0; f < framesPerRally; f++) {
-          const u = f / Math.max(1, framesPerRally - 1);
-          const isScoredMoment = u >= 0.65;
+      const encodeCurrentCanvasFrame = (forceKey) => {
+        const isKeyFrame = forceKey || (globalFrameIdx % fps === 0);
+        if (useHardwareWebCodecs && encoder && encoder.state === "configured") {
+          const vf = new VideoFrame(exportCanvas, {
+            timestamp: globalFrameIdx * frameDurationUs,
+            duration: frameDurationUs
+          });
+          encoder.encode(vf, { keyFrame: isKeyFrame });
+          vf.close();
+        } else {
+          const nalPayload = new Uint8Array(isKeyFrame ? 512 : 160);
+          nalPayload[0] = 0x00; nalPayload[1] = 0x00; nalPayload[2] = 0x01; nalPayload[3] = 0xb8;
+          nalPayload[4] = isKeyFrame ? 0x65 : 0x41;
+          encodedSamples.push({
+            data: nalPayload,
+            isKey: isKeyFrame,
+            timestamp: globalFrameIdx * frameDurationUs,
+            duration: frameDurationUs
+          });
+        }
+        globalFrameIdx++;
+      };
 
-          if (hasLocalVideoLoaded && video.readyState >= 2) {
-            ctxDrawLocalOrSim(ectx, W, H, r, u);
-          } else {
-            drawBadmintonCourtScene(ectx, W, H, r, u);
-          }
+      if (hasLocalVideoLoaded) {
+        const prevPaused = video.paused;
+        const prevMuted = video.muted;
+        const prevTime = video.currentTime;
+        video.pause();
+        video.muted = true;
 
-          drawScoreboardAndWatermarkOnCanvas(ectx, W, H, r, isScoredMoment, includeWatermark);
+        const sourceStepFps = 30;
+        const repeatCount = fps === 60 ? 2 : 1;
+        const totalEstSteps = targetRallies.reduce(
+          (acc, r) => acc + Math.max(1, Math.round(Math.max(0.5, r.end - r.start) * sourceStepFps)),
+          0
+        );
+        let doneSteps = 0;
 
-          const isKeyFrame = (globalFrameIdx % fps === 0) || (f === 0);
-          if (useHardwareWebCodecs && encoder && encoder.state === "configured") {
-            const vf = new VideoFrame(exportCanvas, {
-              timestamp: globalFrameIdx * frameDurationUs,
-              duration: frameDurationUs
+        try {
+          for (let rIdx = 0; rIdx < targetRallies.length; rIdx++) {
+            if (cancelExportRequested) break;
+            const r = targetRallies[rIdx];
+            const rDur = Math.max(0.5, r.end - r.start);
+            const steps = Math.max(1, Math.round(rDur * sourceStepFps));
+            const scoredLead = Math.min(1.2, Math.max(0.35, rDur * 0.25));
+
+            for (let s = 0; s < steps; s++) {
+              if (cancelExportRequested) break;
+              const sampleT = Math.min(r.end, r.start + s / sourceStepFps);
+              await seekVideoSafe(video, sampleT, 260);
+
+              const isScoredMoment = sampleT >= (r.end - scoredLead);
+              drawLocalVideoContain(ectx, video, W, H);
+              drawScoreboardAndWatermarkOnCanvas(ectx, W, H, r, isScoredMoment, includeWatermark);
+
+              for (let rep = 0; rep < repeatCount; rep++) {
+                encodeCurrentCanvasFrame(s === 0 && rep === 0);
+              }
+
+              // Wait briefly if hardware encoder queue gets deep on long matches
+              if (useHardwareWebCodecs && encoder && encoder.encodeQueueSize > 24) {
+                await new Promise((res) => setTimeout(res, 6));
+              }
+
+              doneSteps++;
+              if (doneSteps % 8 === 0 || doneSteps === totalEstSteps) {
+                const pct = Math.min(92, Math.round((doneSteps / Math.max(1, totalEstSteps)) * 90));
+                progBar.style.width = `${pct}%`;
+                progPct.textContent = `${pct}%`;
+                progTxt.textContent = `正在擷取真實畫面並壓製 ${W}×${H} 計分板：第 #${r.rally} 拍 (${formatTime(sampleT)})`;
+                await new Promise((res) => setTimeout(res, 0));
+              }
+            }
+
+            audioSegments.push({
+              startSec: r.start,
+              durSec: (steps * repeatCount) / fps
             });
-            encoder.encode(vf, { keyFrame: isKeyFrame });
-            vf.close();
-          } else {
-            const nalPayload = new Uint8Array(isKeyFrame ? 512 : 160);
-            nalPayload[0] = 0x00; nalPayload[1] = 0x00; nalPayload[2] = 0x01; nalPayload[3] = 0xb8;
-            nalPayload[4] = isKeyFrame ? 0x65 : 0x41;
-            encodedSamples.push({
-              data: nalPayload,
-              isKey: isKeyFrame,
-              timestamp: globalFrameIdx * frameDurationUs,
-              duration: frameDurationUs
-            });
           }
-
-          globalFrameIdx++;
-
-          if (globalFrameIdx % 12 === 0 || globalFrameIdx === totalFrames) {
-            const pct = Math.round((globalFrameIdx / totalFrames) * 100);
-            progBar.style.width = `${pct}%`;
-            progPct.textContent = `${pct}%`;
-            progTxt.textContent = `正在合成 ${W}×${H} 轉播計分板：第 #${r.rally} 拍 (${r.nearAfter}:${r.farAfter})`;
-            await new Promise(res => setTimeout(res, 0));
+        } finally {
+          video.muted = prevMuted;
+          await seekVideoSafe(video, prevTime, 200);
+          if (!prevPaused && !cancelExportRequested) {
+            video.play().catch(() => {});
           }
         }
+      } else {
+        const framesPerRally = scopeVal === "all_37" ? Math.round(fps * 0.35) : Math.round(fps * 0.9);
+        const totalFrames = targetRallies.length * framesPerRally;
+
+        for (let rIdx = 0; rIdx < targetRallies.length; rIdx++) {
+          if (cancelExportRequested) break;
+          const r = targetRallies[rIdx];
+          for (let f = 0; f < framesPerRally; f++) {
+            if (cancelExportRequested) break;
+            const u = f / Math.max(1, framesPerRally - 1);
+            const isScoredMoment = u >= 0.65;
+
+            drawBadmintonCourtScene(ectx, W, H, r, u);
+            drawScoreboardAndWatermarkOnCanvas(ectx, W, H, r, isScoredMoment, includeWatermark);
+            encodeCurrentCanvasFrame(f === 0);
+
+            if (globalFrameIdx % 12 === 0 || globalFrameIdx === totalFrames) {
+              const pct = Math.round((globalFrameIdx / totalFrames) * 100);
+              progBar.style.width = `${pct}%`;
+              progPct.textContent = `${pct}%`;
+              progTxt.textContent = `正在合成 ${W}×${H} 轉播計分板：第 #${r.rally} 拍 (${r.nearAfter}:${r.farAfter})`;
+              await new Promise((res) => setTimeout(res, 0));
+            }
+          }
+        }
+      }
+
+      if (cancelExportRequested) {
+        if (useHardwareWebCodecs && encoder) {
+          try { if (encoder.state !== "closed") encoder.close(); } catch (_) {}
+        }
+        progBox.style.display = "none";
+        isExportingMp4 = false;
+        cancelExportRequested = false;
+        return;
       }
 
       if (useHardwareWebCodecs && encoder) {
@@ -3714,12 +5256,22 @@
         } catch (_) {}
       }
 
+      let audioTrack = null;
+      if (hasLocalVideoLoaded && audioSegments.length > 0) {
+        progBar.style.width = "95%";
+        progPct.textContent = "95%";
+        progTxt.textContent = "🎧 正在同步剪接真實擊球原音軌並消除切點爆音...";
+        await new Promise((res) => setTimeout(res, 0));
+        audioTrack = await encodeSplicedAudioTrack(audioSegments, 48000);
+      }
+
       const mp4Bytes = NoPickMp4Muxer.buildMp4({
         width: W,
         height: H,
         fps,
         avcCBytes,
-        samples: encodedSamples
+        samples: encodedSamples,
+        audioTrack
       });
 
       const finalNear = RALLIES[RALLIES.length - 1].nearAfter;
@@ -3754,6 +5306,7 @@
       const blobUrl = URL.createObjectURL(mp4Blob);
       const elapsedSec = ((performance.now() - tStart) / 1000).toFixed(2);
       const sizeKb = (mp4Bytes.byteLength / 1024).toFixed(1);
+      const hasAudioMuxed = Boolean(audioTrack && audioTrack.samples.length > 0);
 
       window.__lastWebCodecsExport = {
         tierMode,
@@ -3762,6 +5315,9 @@
         height: H,
         fps,
         codec: chosenCodec,
+        hasAudio: hasAudioMuxed,
+        audioCodec: hasAudioMuxed ? audioTrack.codec : null,
+        exportedRallyCount: targetRallies.length,
         totalFrames: encodedSamples.length,
         byteLength: mp4Bytes.byteLength,
         hasWatermark: includeWatermark,
@@ -3782,15 +5338,16 @@
       tierBadge.className = isPro ? "pill pill-emerald" : "pill pill-amber";
       tierBadge.textContent = isPro ? "🔥 1080p60 無浮水印" : "🎁 720p30 免費版";
 
-      document.getElementById("exportResSpecBadge").textContent = `${W}×${H} · ${fps}fps`;
+      document.getElementById("exportResSpecBadge").textContent =
+        `${W}×${H} · ${fps}fps${hasAudioMuxed ? " · 同步原音" : ""}`;
       document.getElementById("exportResOpfsBadge").textContent = opfsStatus;
       document.getElementById("exportResTitle").textContent = isPro
         ? `✅ 1080p60 無浮水印影片已完成！（剩餘 ${userWallet.proCredits} 場 Pro）`
         : `✅ 720p30 免費體驗影片已完成！`;
       document.getElementById("exportResSummary").textContent =
-        `${document.getElementById("nearInput").value} vs ${document.getElementById("farInput").value} · 比分 ${finalNear} : ${finalFar}`;
+        `${document.getElementById("nearInput").value} vs ${document.getElementById("farInput").value} · 共 ${targetRallies.length} 拍 · 比分 ${finalNear} : ${finalFar}`;
       document.getElementById("exportResTelemetry").textContent =
-        `${encodedSamples.length} 幀 · ${sizeKb} KB · 耗時 ${elapsedSec} 秒`;
+        `${encodedSamples.length} 幀${hasAudioMuxed ? ` + ${audioTrack.codec.toUpperCase()} 音軌` : ""} · ${sizeKb} KB · 耗時 ${elapsedSec} 秒`;
 
       setTimeout(() => {
         progBox.style.display = "none";
@@ -3804,16 +5361,9 @@
       isExportingMp4 = false;
     }
 
-    function ctxDrawLocalOrSim(ctx, W, H, r, u) {
-      try {
-        ctx.drawImage(video, 0, 0, W, H);
-      } catch (_) {
-        drawBadmintonCourtScene(ctx, W, H, r, u);
-      }
-    }
-
     initPhysicalObservations();
     recomputeScores();
+    syncDynamicMatchKpis();
     renderAll();
     loadWallet();
     initGoogleAuthGate();
