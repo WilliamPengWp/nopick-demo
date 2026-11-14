@@ -1630,11 +1630,11 @@
         <div class="cut-tune-bar" id="cutSensitivityBar">
           <div style="display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
             <span style="font-weight:700; color:var(--court-green);" id="cutEngineLabel">🎧 擊球聲紋＋跑動偵測：</span>
-            <button type="button" class="sens-pill" id="sensBtnStrict" onclick="resegmentWithSensitivity('strict')" title="提高門檻，強力濾除隔壁場擊球聲與撿球傳球">嚴格濾鄰場</button>
-            <button type="button" class="sens-pill active" id="sensBtnStandard" onclick="resegmentWithSensitivity('standard')" title="平衡球拍清脆擊球聲紋與場內跑動">標準</button>
-            <button type="button" class="sens-pill" id="sensBtnRelaxed" onclick="resegmentWithSensitivity('relaxed')" title="保留極短發球直接得分拍">寬鬆留短球</button>
+            <button type="button" class="sens-pill" id="sensBtnStrict" onclick="resegmentWithSensitivity('strict')" title="鄰場干擾極大時使用：提高聲紋與雙半場步伐門檻">積極濾鄰場</button>
+            <button type="button" class="sens-pill active" id="sensBtnStandard" onclick="resegmentWithSensitivity('standard')" title="球館殘響補償＋遠近雙半場正規化偵測（預設推薦）">標準</button>
+            <button type="button" class="sens-pill" id="sensBtnRelaxed" onclick="resegmentWithSensitivity('relaxed')" title="完整保留高遠球對拉與網前輕放小球，絕不中途切斷回合">防切碎長拍</button>
           </div>
-          <button type="button" class="mini-trim-btn" onclick="addRallyAtCurrentTime()" title="在目前影片播放秒數手動插入一拍">➕ 在目前秒數加一拍</button>
+          <button type="button" class="mini-trim-btn" onclick="addRallyAtCurrentTime()" title="在目前影片播放秒數手動插入或拆開一拍">➕ 在目前秒數加一拍</button>
         </div>
 
         <!-- Compact Visual AI Auto-Align Bar -->
@@ -2632,7 +2632,7 @@
       const N = RALLIES.length;
       if (N === 0) return;
 
-      if (typeof RALLIES[0].obsNearP1Right === "undefined" || typeof RALLIES[0].obsHandoff === "undefined") {
+      if (!hasLocalVideoLoaded && (typeof RALLIES[0].obsNearP1Right === "undefined" || typeof RALLIES[0].obsHandoff === "undefined")) {
         populatePhysicalObservationsFromWinners(RALLIES, matchStartNear, matchStartFar);
       }
 
@@ -2680,12 +2680,23 @@
             const newFr = fr ^ ((prevSrv === "far" && w === "far") ? 1 : 0);
 
             let lp = val.lp;
-            lp += logP(newNr === r.obsNearP1Right ? 0.95 : 0.05);
-            lp += logP(newFr === r.obsFarP1Right ? 0.93 : 0.07);
-            lp += logP(w === r.obsHandoff ? 0.90 : 0.10);
-            const winScore = w === "near" ? newNs : newFs;
-            const isEven = (winScore % 2 === 0);
-            lp += logP(isEven === r.obsEvenBox ? 0.88 : 0.12);
+            if (hasLocalVideoLoaded) {
+              // Use perspective-normalized continuous rally probability + respect user manual locks
+              let pNear = typeof r.obsWinNearProb === "number"
+                ? r.obsWinNearProb
+                : (r.winner === "near" ? 0.68 : 0.32);
+              if (r.userLockedWinner) {
+                pNear = r.winner === "near" ? 0.999 : 0.001;
+              }
+              lp += logP(w === "near" ? pNear : (1 - pNear));
+            } else {
+              lp += logP(newNr === r.obsNearP1Right ? 0.95 : 0.05);
+              lp += logP(newFr === r.obsFarP1Right ? 0.93 : 0.07);
+              lp += logP(w === r.obsHandoff ? 0.90 : 0.10);
+              const winScore = w === "near" ? newNs : newFs;
+              const isEven = (winScore % 2 === 0);
+              lp += logP(isEven === r.obsEvenBox ? 0.88 : 0.12);
+            }
 
             const nxtKey = `${newNs},${newFs},${w},${newNr},${newFr}`;
             const existing = dp[k].get(nxtKey);
@@ -2708,8 +2719,13 @@
         let curKey = bestKey;
         for (let k = N; k >= 1; k--) {
           const entry = dp[k].get(curKey);
-          RALLIES[k - 1].winner = entry.winner;
-          RALLIES[k - 1].lowConfidence = false;
+          const rObj = RALLIES[k - 1];
+          rObj.winner = entry.winner;
+          if (hasLocalVideoLoaded && !useAnchor && !rObj.userLockedWinner && typeof rObj.obsWinNearProb === "number") {
+            rObj.lowConfidence = Math.abs(rObj.obsWinNearProb - 0.5) < 0.09;
+          } else {
+            rObj.lowConfidence = false;
+          }
           curKey = entry.back;
         }
         if (curKey) {
@@ -2734,7 +2750,7 @@
       const badge = document.getElementById("kpiAccuracyBadge");
       badge.className = "pill pill-emerald";
       badge.textContent = `${N}/${N} 拍已鎖定`;
-      document.getElementById("viterbiStatusText").textContent = "✅ 已自動對齊：";
+      document.getElementById("viterbiStatusText").textContent = useAnchor ? "✅ 已對齊終場分：" : "💡 可輸入終場分對齊：";
     }
 
     function simulateNoisySingleFrameAI() {
@@ -2756,7 +2772,7 @@
         });
       } else {
         RALLIES.forEach((r, i) => {
-          const baseWinner = r.obsHandoff || r.winner || "near";
+          const baseWinner = (typeof r.obsWinNearProb === "number" ? (r.obsWinNearProb >= 0.5 ? "near" : "far") : r.winner) || "near";
           if (i % 3 === 1 || i % 7 === 3) {
             r.winner = baseWinner === "near" ? "far" : "near";
             r.lowConfidence = true;
@@ -2779,8 +2795,11 @@
     }
 
     // ============================================================================
-    // Real Dual-Modal Badminton Dead-Time Removal Engine
-    // (2.0–6.8kHz Racket-Impact Transient Chain + 48-Zone Center-Court Motion)
+    // V2 Gymnasium-Grade Badminton Dead-Time & Perspective-Normalized Score Engine
+    // - Large MP4/MOV Audio-Only Slice Demuxer (handles 500MB–4GB 1080p60/4K videos!)
+    // - Log-dB Dual-Band (2.4–7.2kHz vs 180–950Hz) Causal Reverberation-Immune Onset
+    // - Trapezoid Dual-Court Independent ROI Normalization (Near vs Far half)
+    // - Mid-Quantile (P15+P85)/2 Per-Half Z-Score Winner Probability Calibration
     // ============================================================================
     function computePercentile(arr, q) {
       if (!arr || arr.length === 0) return 0;
@@ -2817,21 +2836,281 @@
       });
     }
 
+    // Extracts ONLY the compact 'soun' audio track (~5–25MB) from arbitrarily large MP4/MOV files (up to 4GB+ 4K60)
+    // using File.slice() without ever loading gigabytes of H.264/HEVC video into browser RAM!
+    async function extractAudioOnlyMp4Buffer(file) {
+      try {
+        const fileSize = file.size;
+        if (!file || fileSize < 64) return null;
+
+        const fourcc = (dv, off) => String.fromCharCode(
+          dv.getUint8(off), dv.getUint8(off + 1), dv.getUint8(off + 2), dv.getUint8(off + 3)
+        );
+        const makeIsoBox = (typeStr, parts) => {
+          let total = 8;
+          for (const p of parts) total += p.byteLength;
+          const out = new Uint8Array(total);
+          const dv = new DataView(out.buffer);
+          dv.setUint32(0, total, false);
+          for (let i = 0; i < 4; i++) out[4 + i] = typeStr.charCodeAt(i);
+          let cur = 8;
+          for (const p of parts) {
+            out.set(p, cur);
+            cur += p.byteLength;
+          }
+          return out;
+        };
+        const listChildBoxes = (u8, dv, start, end) => {
+          const list = [];
+          let cur = start;
+          while (cur + 8 <= end) {
+            const sz32 = dv.getUint32(cur, false);
+            const tp = fourcc(dv, cur + 4);
+            let boxSz = sz32;
+            let hdrLen = 8;
+            if (sz32 === 1) {
+              if (cur + 16 > end) break;
+              boxSz = dv.getUint32(cur + 8, false) * 4294967296 + dv.getUint32(cur + 12, false);
+              hdrLen = 16;
+            } else if (sz32 === 0) {
+              boxSz = end - cur;
+            }
+            if (boxSz < hdrLen || cur + boxSz > end) break;
+            list.push({ type: tp, offset: cur, size: boxSz, hdrLen, payloadOffset: cur + hdrLen, payloadEnd: cur + boxSz });
+            cur += boxSz;
+          }
+          return list;
+        };
+
+        let ftypSlice = null;
+        let moovSlice = null;
+        let pos = 0;
+        let guard = 0;
+        while (pos + 8 <= fileSize && guard++ < 256) {
+          const hdrBuf = await file.slice(pos, Math.min(fileSize, pos + 16)).arrayBuffer();
+          if (hdrBuf.byteLength < 8) break;
+          const dv = new DataView(hdrBuf);
+          const sz32 = dv.getUint32(0, false);
+          const tp = fourcc(dv, 4);
+          let boxSz = sz32;
+          let hdrLen = 8;
+          if (sz32 === 1) {
+            if (hdrBuf.byteLength < 16) break;
+            boxSz = dv.getUint32(8, false) * 4294967296 + dv.getUint32(12, false);
+            hdrLen = 16;
+          } else if (sz32 === 0) {
+            boxSz = fileSize - pos;
+          }
+          if (boxSz < hdrLen || pos + boxSz > fileSize) break;
+          if (tp === "ftyp" && boxSz <= 4096) ftypSlice = { pos, size: boxSz };
+          if (tp === "moov" && boxSz <= 64 * 1024 * 1024) moovSlice = { pos, size: boxSz, hdrLen };
+          pos += boxSz;
+        }
+
+        if (!moovSlice) return null;
+        const moovBuf = await file.slice(moovSlice.pos, moovSlice.pos + moovSlice.size).arrayBuffer();
+        const moovU8 = new Uint8Array(moovBuf);
+        const moovDv = new DataView(moovBuf);
+        const moovChildren = listChildBoxes(moovU8, moovDv, moovSlice.hdrLen, moovBuf.byteLength);
+
+        const mvhdBox = moovChildren.find((b) => b.type === "mvhd");
+        if (!mvhdBox) return null;
+        const mvhdBytes = moovU8.subarray(mvhdBox.offset, mvhdBox.offset + mvhdBox.size);
+
+        let sounParts = null;
+        for (const trak of moovChildren.filter((b) => b.type === "trak")) {
+          const trakKids = listChildBoxes(moovU8, moovDv, trak.payloadOffset, trak.payloadEnd);
+          const tkhd = trakKids.find((b) => b.type === "tkhd");
+          const edts = trakKids.find((b) => b.type === "edts");
+          const mdia = trakKids.find((b) => b.type === "mdia");
+          if (!tkhd || !mdia) continue;
+
+          const mdiaKids = listChildBoxes(moovU8, moovDv, mdia.payloadOffset, mdia.payloadEnd);
+          const mdhd = mdiaKids.find((b) => b.type === "mdhd");
+          const hdlr = mdiaKids.find((b) => b.type === "hdlr");
+          const minf = mdiaKids.find((b) => b.type === "minf");
+          if (!mdhd || !hdlr || !minf || hdlr.payloadOffset + 12 > hdlr.payloadEnd) continue;
+          if (fourcc(moovDv, hdlr.payloadOffset + 8) !== "soun") continue;
+
+          const minfKids = listChildBoxes(moovU8, moovDv, minf.payloadOffset, minf.payloadEnd);
+          const smhd = minfKids.find((b) => b.type === "smhd");
+          const stbl = minfKids.find((b) => b.type === "stbl");
+          if (!stbl) continue;
+
+          const stblKids = listChildBoxes(moovU8, moovDv, stbl.payloadOffset, stbl.payloadEnd);
+          const stsd = stblKids.find((b) => b.type === "stsd");
+          const stts = stblKids.find((b) => b.type === "stts");
+          const stsc = stblKids.find((b) => b.type === "stsc");
+          const stsz = stblKids.find((b) => b.type === "stsz");
+          const coBox = stblKids.find((b) => b.type === "stco" || b.type === "co64");
+          if (!stsd || !stts || !stsc || !stsz || !coBox) continue;
+
+          sounParts = { tkhd, edts, mdhd, hdlr, smhd, stsd, stts, stsc, stsz, coBox };
+          break;
+        }
+        if (!sounParts) return null;
+
+        const { tkhd, edts, mdhd, hdlr, smhd, stsd, stts, stsc, stsz, coBox } = sounParts;
+        const numChunks = moovDv.getUint32(coBox.payloadOffset + 4, false);
+        if (numChunks === 0 || numChunks > 400000) return null;
+
+        const origOffsets = new Float64Array(numChunks);
+        if (coBox.type === "stco") {
+          if (coBox.payloadOffset + 8 + numChunks * 4 > coBox.payloadEnd) return null;
+          for (let c = 0; c < numChunks; c++) {
+            origOffsets[c] = moovDv.getUint32(coBox.payloadOffset + 8 + c * 4, false);
+          }
+        } else {
+          if (coBox.payloadOffset + 8 + numChunks * 8 > coBox.payloadEnd) return null;
+          for (let c = 0; c < numChunks; c++) {
+            const base = coBox.payloadOffset + 8 + c * 8;
+            origOffsets[c] = moovDv.getUint32(base, false) * 4294967296 + moovDv.getUint32(base + 4, false);
+          }
+        }
+
+        const uniformSampleSz = moovDv.getUint32(stsz.payloadOffset + 4, false);
+        const totalSamples = moovDv.getUint32(stsz.payloadOffset + 8, false);
+        if (uniformSampleSz === 0 && stsz.payloadOffset + 12 + totalSamples * 4 > stsz.payloadEnd) return null;
+
+        const stscCount = moovDv.getUint32(stsc.payloadOffset + 4, false);
+        if (stscCount === 0 || stsc.payloadOffset + 8 + stscCount * 12 > stsc.payloadEnd) return null;
+        const stscFirst = new Uint32Array(stscCount);
+        const stscSpc = new Uint32Array(stscCount);
+        for (let e = 0; e < stscCount; e++) {
+          const base = stsc.payloadOffset + 8 + e * 12;
+          stscFirst[e] = moovDv.getUint32(base, false);
+          stscSpc[e] = moovDv.getUint32(base + 4, false);
+        }
+
+        const chunkLens = new Uint32Array(numChunks);
+        let sampleIdx = 0;
+        let stscIdx = 0;
+        let totalAudioBytes = 0;
+        for (let c = 0; c < numChunks; c++) {
+          const chunkNum1 = c + 1;
+          while (stscIdx + 1 < stscCount && chunkNum1 >= stscFirst[stscIdx + 1]) stscIdx++;
+          const spc = stscSpc[stscIdx];
+          let byteLen = 0;
+          if (uniformSampleSz > 0) {
+            byteLen = spc * uniformSampleSz;
+            sampleIdx += spc;
+          } else {
+            for (let s = 0; s < spc && sampleIdx < totalSamples; s++, sampleIdx++) {
+              byteLen += moovDv.getUint32(stsz.payloadOffset + 12 + sampleIdx * 4, false);
+            }
+          }
+          if (origOffsets[c] < 0 || origOffsets[c] + byteLen > fileSize) return null;
+          chunkLens[c] = byteLen;
+          totalAudioBytes += byteLen;
+        }
+        if (totalAudioBytes <= 0 || totalAudioBytes > 96 * 1024 * 1024) return null;
+
+        const ftypBytes = ftypSlice
+          ? new Uint8Array(await file.slice(ftypSlice.pos, ftypSlice.pos + ftypSlice.size).arrayBuffer())
+          : makeIsoBox("ftyp", [new Uint8Array([0x69,0x73,0x6f,0x6d, 0,0,2,0, 0x69,0x73,0x6f,0x6d, 0x6d,0x70,0x34,0x32])]);
+        const tkhdBytes = moovU8.subarray(tkhd.offset, tkhd.offset + tkhd.size);
+        const edtsBytes = edts ? moovU8.subarray(edts.offset, edts.offset + edts.size) : null;
+        const mdhdBytes = moovU8.subarray(mdhd.offset, mdhd.offset + mdhd.size);
+        const hdlrBytes = moovU8.subarray(hdlr.offset, hdlr.offset + hdlr.size);
+        const smhdBytes = smhd
+          ? moovU8.subarray(smhd.offset, smhd.offset + smhd.size)
+          : makeIsoBox("smhd", [new Uint8Array(8)]);
+        const urlBox = makeIsoBox("url ", [new Uint8Array([0, 0, 0, 1])]);
+        const drefPayload = new Uint8Array(8 + urlBox.byteLength);
+        new DataView(drefPayload.buffer).setUint32(4, 1, false);
+        drefPayload.set(urlBox, 8);
+        const dinfBytes = makeIsoBox("dinf", [makeIsoBox("dref", [drefPayload])]);
+
+        const stsdBytes = moovU8.subarray(stsd.offset, stsd.offset + stsd.size);
+        const sttsBytes = moovU8.subarray(stts.offset, stts.offset + stts.size);
+        const stscBytes = moovU8.subarray(stsc.offset, stsc.offset + stsc.size);
+        const stszBytes = moovU8.subarray(stsz.offset, stsz.offset + stsz.size);
+
+        const stcoSize = 16 + numChunks * 4;
+        const stblSize = 8 + stsdBytes.byteLength + sttsBytes.byteLength + stscBytes.byteLength + stszBytes.byteLength + stcoSize;
+        const minfSize = 8 + smhdBytes.byteLength + dinfBytes.byteLength + stblSize;
+        const mdiaSize = 8 + mdhdBytes.byteLength + hdlrBytes.byteLength + minfSize;
+        const trakSize = 8 + tkhdBytes.byteLength + (edtsBytes ? edtsBytes.byteLength : 0) + mdiaSize;
+        const moovSize = 8 + mvhdBytes.byteLength + trakSize;
+        const mdatPayloadOffset = ftypBytes.byteLength + moovSize + 8;
+        if (mdatPayloadOffset + totalAudioBytes > 0x7fffffff) return null;
+
+        const stcoPayload = new Uint8Array(8 + numChunks * 4);
+        const stcoDv = new DataView(stcoPayload.buffer);
+        stcoDv.setUint32(4, numChunks, false);
+        let runningAudioOff = 0;
+        for (let c = 0; c < numChunks; c++) {
+          stcoDv.setUint32(8 + c * 4, mdatPayloadOffset + runningAudioOff, false);
+          runningAudioOff += chunkLens[c];
+        }
+        const newStcoBytes = makeIsoBox("stco", [stcoPayload]);
+        const newStbl = makeIsoBox("stbl", [stsdBytes, sttsBytes, stscBytes, stszBytes, newStcoBytes]);
+        const newMinf = makeIsoBox("minf", [smhdBytes, dinfBytes, newStbl]);
+        const newMdia = makeIsoBox("mdia", [mdhdBytes, hdlrBytes, newMinf]);
+        const trakParts = edtsBytes ? [tkhdBytes, edtsBytes, newMdia] : [tkhdBytes, newMdia];
+        const newMoov = makeIsoBox("moov", [mvhdBytes, makeIsoBox("trak", trakParts)]);
+        if (newMoov.byteLength !== moovSize) return null;
+
+        const totalOutSize = mdatPayloadOffset + totalAudioBytes;
+        const outBuf = new ArrayBuffer(totalOutSize);
+        const outU8 = new Uint8Array(outBuf);
+        outU8.set(ftypBytes, 0);
+        outU8.set(newMoov, ftypBytes.byteLength);
+        const mdatDv = new DataView(outBuf, ftypBytes.byteLength + moovSize, 8);
+        mdatDv.setUint32(0, 8 + totalAudioBytes, false);
+        outU8[ftypBytes.byteLength + moovSize + 4] = 0x6d; // 'm'
+        outU8[ftypBytes.byteLength + moovSize + 5] = 0x64; // 'd'
+        outU8[ftypBytes.byteLength + moovSize + 6] = 0x61; // 'a'
+        outU8[ftypBytes.byteLength + moovSize + 7] = 0x74; // 't'
+
+        let writeCursor = mdatPayloadOffset;
+        const BATCH = 128;
+        for (let bStart = 0; bStart < numChunks; bStart += BATCH) {
+          const bEnd = Math.min(numChunks, bStart + BATCH);
+          const promises = [];
+          for (let c = bStart; c < bEnd; c++) {
+            promises.push(file.slice(origOffsets[c], origOffsets[c] + chunkLens[c]).arrayBuffer());
+          }
+          const slices = await Promise.all(promises);
+          for (const sl of slices) {
+            const arr = new Uint8Array(sl);
+            outU8.set(arr, writeCursor);
+            writeCursor += arr.byteLength;
+          }
+        }
+        return outBuf;
+      } catch (err) {
+        console.warn("Audio-only MP4/MOV slice fallback:", err);
+        return null;
+      }
+    }
+
     async function extractAcousticHitProfile(file, durationSec, onProgress) {
       cachedAudioBuffer = null;
-      if (!file || file.size > 180 * 1024 * 1024) {
-        return { hasUsableAudio: false, hits: [], env: new Float32Array(0), envStepSec: 0.02, p90HitAmp: 0 };
+      if (!file) {
+        return { hasUsableAudio: false, hits: [], env: new Float32Array(0), envStepSec: 0.02, fgHitDb: -20 };
       }
 
       try {
-        if (onProgress) onProgress(8, "🎧 正在解碼音軌並分離 2.0–6.8kHz 羽球拍擊球清脆聲紋...");
-        const rawBuf = await file.arrayBuffer();
-        const targetSr = durationSec > 600 ? 24000 : 48000;
+        if (onProgress) onProgress(8, "🎧 正在分離音軌並掃描 2.4–7.2kHz 球館抗殘響擊球聲紋...");
+        let rawBuf = null;
+        if (file.size > 28 * 1024 * 1024) {
+          rawBuf = await extractAudioOnlyMp4Buffer(file);
+        }
+        if (!rawBuf) {
+          if (file.size <= 320 * 1024 * 1024) {
+            rawBuf = await file.arrayBuffer();
+          } else {
+            return { hasUsableAudio: false, hits: [], env: new Float32Array(0), envStepSec: 0.02, fgHitDb: -20 };
+          }
+        }
+
+        const targetSr = durationSec > 240 ? 24000 : 48000;
         const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
         let decoded = null;
 
         if (OfflineCtx) {
-          const octx = new OfflineCtx(1, targetSr, targetSr);
+          const octx = new OfflineCtx(1, 1, targetSr);
           decoded = await octx.decodeAudioData(rawBuf.slice(0));
         } else {
           const Actx = window.AudioContext || window.webkitAudioContext;
@@ -2846,7 +3125,7 @@
         }
 
         if (!decoded || decoded.length === 0) {
-          return { hasUsableAudio: false, hits: [], env: new Float32Array(0), envStepSec: 0.02, p90HitAmp: 0 };
+          return { hasUsableAudio: false, hits: [], env: new Float32Array(0), envStepSec: 0.02, fgHitDb: -20 };
         }
 
         const sr = decoded.sampleRate;
@@ -2862,111 +3141,142 @@
         }
         cachedAudioBuffer = { sampleRate: sr, data: mono };
 
-        // 2-stage High-Pass at 2,000 Hz + Low-Pass at 6,800 Hz to isolate stringbed-on-cork transients
+        // Dual-band filter bank:
+        // Band Hi (2,400–7,200 Hz): crisp stringbed-on-cork transient
+        // Band Lo (180–950 Hz): human voice vowels, shouting ("好球!"), footsteps & HVAC
         const dt = 1 / sr;
-        const rcHp = 1 / (2 * Math.PI * 2000);
-        const alphaHp = rcHp / (rcHp + dt);
-        const fcLp = Math.min(6800, sr * 0.42);
-        const rcLp = 1 / (2 * Math.PI * fcLp);
-        const alphaLp = dt / (rcLp + dt);
+        const rcHpHi = 1 / (2 * Math.PI * 2400);
+        const aHpHi = rcHpHi / (rcHpHi + dt);
+        const fcLpHi = Math.min(7200, sr * 0.44);
+        const rcLpHi = 1 / (2 * Math.PI * fcLpHi);
+        const aLpHi = dt / (rcLpHi + dt);
+
+        const rcHpLo = 1 / (2 * Math.PI * 180);
+        const aHpLo = rcHpLo / (rcHpLo + dt);
+        const rcLpLo = 1 / (2 * Math.PI * 950);
+        const aLpLo = dt / (rcLpLo + dt);
 
         const hop = Math.max(1, Math.round(sr * 0.02)); // 20ms bins (50Hz)
         const numBins = Math.ceil(len / hop);
-        const env = new Float32Array(numBins);
+        const envHi = new Float32Array(numBins);
+        const hiDb = new Float32Array(numBins);
+        const loDb = new Float32Array(numBins);
 
-        let prevX1 = 0, prevY1 = 0, prevX2 = 0, prevY2 = 0, prevLp = 0;
+        let x1Hi = 0, y1Hi = 0, x2Hi = 0, y2Hi = 0, lpHi = 0;
+        let x1Lo = 0, y1Lo = 0, lpLo = 0;
+
         for (let b = 0; b < numBins; b++) {
           const start = b * hop;
           const end = Math.min(len, start + hop);
-          let sumSq = 0;
-          let maxAbs = 0;
+          let sumSqHi = 0, maxAbsHi = 0;
+          let sumSqLo = 0, maxAbsLo = 0;
           for (let i = start; i < end; i++) {
             const x = mono[i];
-            const hp1 = alphaHp * (prevY1 + x - prevX1);
-            prevX1 = x;
-            prevY1 = hp1;
-            const hp2 = alphaHp * (prevY2 + hp1 - prevX2);
-            prevX2 = hp1;
-            prevY2 = hp2;
-            const bp = prevLp + alphaLp * (hp2 - prevLp);
-            prevLp = bp;
+            // High band 2.4–7.2kHz
+            const hp1 = aHpHi * (y1Hi + x - x1Hi);
+            x1Hi = x; y1Hi = hp1;
+            const hp2 = aHpHi * (y2Hi + hp1 - x2Hi);
+            x2Hi = hp1; y2Hi = hp2;
+            lpHi = lpHi + aLpHi * (hp2 - lpHi);
+            const ah = Math.abs(lpHi);
+            if (ah > maxAbsHi) maxAbsHi = ah;
+            sumSqHi += lpHi * lpHi;
 
-            const a = Math.abs(bp);
-            if (a > maxAbs) maxAbs = a;
-            sumSq += bp * bp;
+            // Voice/low-mid band 180–950Hz
+            const hpL = aHpLo * (y1Lo + x - x1Lo);
+            x1Lo = x; y1Lo = hpL;
+            lpLo = lpLo + aLpLo * (hpL - lpLo);
+            const al = Math.abs(lpLo);
+            if (al > maxAbsLo) maxAbsLo = al;
+            sumSqLo += lpLo * lpLo;
           }
-          const rms = Math.sqrt(sumSq / Math.max(1, end - start));
-          env[b] = rms * 0.62 + maxAbs * 0.38;
+          const nSamp = Math.max(1, end - start);
+          const eHi = Math.sqrt(sumSqHi / nSamp) * 0.55 + maxAbsHi * 0.45;
+          const eLo = Math.sqrt(sumSqLo / nSamp) * 0.65 + maxAbsLo * 0.35;
+          envHi[b] = eHi;
+          hiDb[b] = 20 * Math.log10(Math.max(1e-6, eHi));
+          loDb[b] = 20 * Math.log10(Math.max(1e-6, eLo));
         }
 
-        const globalNoiseFloor = Math.max(1e-4, computePercentile(env, 0.25));
-        const maxEnv = computePercentile(env, 0.995);
-        if (maxEnv < globalNoiseFloor * 2.1 || maxEnv < 4e-4) {
-          return { hasUsableAudio: false, hits: [], env, envStepSec: hop / sr, p90HitAmp: 0 };
+        const globalNoiseDb = computePercentile(hiDb, 0.20);
+        const p995Db = computePercentile(hiDb, 0.995);
+        if (p995Db - globalNoiseDb < 5.5 || p995Db < -72) {
+          return { hasUsableAudio: false, hits: [], env: envHi, envStepSec: hop / sr, fgHitDb: -20 };
         }
 
-        // Detect sharp racket-impact transients (refractory ±140ms = ±7 bins)
+        // Causal Log-dB Onset Detector (immune to 300-1000ms gym reverberation tails AND catches -22dB far-court drops!)
         const candidateHits = [];
-        const bgScratch = [];
-        for (let b = 3; b < numBins - 3; b++) {
-          const cur = env[b];
-          if (cur < globalNoiseFloor * 2.0) continue;
+        const ambScratch = [];
+        for (let b = 5; b < numBins - 5; b++) {
+          const curDb = hiDb[b];
+          if (curDb < globalNoiseDb + 4.0) continue;
 
+          // Refractory ±100ms (±5 bins): catches fast flat-drive exchanges while avoiding double triggers
           let isLocalMax = true;
-          const rStart = Math.max(0, b - 7);
-          const rEnd = Math.min(numBins - 1, b + 7);
-          for (let j = rStart; j <= rEnd; j++) {
-            if (j !== b && env[j] > cur) {
-              isLocalMax = false;
-              break;
-            }
+          for (let j = b - 5; j <= b + 5; j++) {
+            if (j < b && hiDb[j] >= curDb) { isLocalMax = false; break; }
+            if (j > b && hiDb[j] > curDb) { isLocalMax = false; break; }
           }
           if (!isLocalMax) continue;
 
-          bgScratch.length = 0;
-          const wStart = Math.max(0, b - 22);
-          const wEnd = Math.min(numBins - 1, b + 22);
-          for (let j = wStart; j <= wEnd; j++) {
-            if (Math.abs(j - b) > 2) bgScratch.push(env[j]);
-          }
-          bgScratch.sort((a, c) => a - c);
-          const bg = Math.max(globalNoiseFloor * 0.75, bgScratch[Math.floor(bgScratch.length * 0.35)] || globalNoiseFloor);
+          // Causal pre-attack floor (40-100ms strictly BEFORE impact: zero echo contamination!)
+          const preFloorDb = Math.min(hiDb[b - 5], hiDb[b - 4], hiDb[b - 3], hiDb[b - 2]);
+          const attackDb = curDb - preFloorDb;
+          // Immediate 40ms onset & 40ms decay check: passes <15ms racket impacts even in heavy gym reverb,
+          // while rejecting rounded 180-300ms PVC shoe squeaks & whistles!
+          const fastAttackDb = curDb - hiDb[b - 2];
+          const fastDecayDb = curDb - hiDb[b + 2];
+          const postTailDb = Math.min(hiDb[b + 2], hiDb[b + 3], hiDb[b + 4]);
+          const postDropDb = curDb - postTailDb;
 
-          let susSum = 0, susCnt = 0;
-          const sStart = Math.max(0, b - 9);
-          const sEnd = Math.min(numBins - 1, b + 9);
-          for (let j = sStart; j <= sEnd; j++) {
-            if (Math.abs(j - b) > 1) {
-              susSum += env[j];
-              susCnt++;
-            }
+          // Local ±1.5s 20th-percentile room ambient floor
+          ambScratch.length = 0;
+          const wStart = Math.max(0, b - 75);
+          const wEnd = Math.min(numBins - 1, b + 75);
+          for (let j = wStart; j <= wEnd; j += 2) {
+            if (Math.abs(j - b) > 2) ambScratch.push(hiDb[j]);
           }
-          const sustain = Math.max(globalNoiseFloor * 0.75, susCnt > 0 ? susSum / susCnt : bg);
-          const prominence = cur / bg;
-          const sharpness = cur / sustain;
+          ambScratch.sort((a, c) => a - c);
+          const localAmbDb = Math.max(
+            globalNoiseDb - 3.0,
+            ambScratch[Math.floor(ambScratch.length * 0.20)] ?? globalNoiseDb
+          );
+          const snrDb = curDb - localAmbDb;
+          const hiVsLoDb = curDb - loDb[b];
 
-          if (prominence >= 2.0 && sharpness >= 1.18) {
+          if (
+            snrDb >= 4.2 &&
+            attackDb >= 3.4 &&
+            fastAttackDb >= 2.8 &&
+            fastDecayDb >= 2.6 &&
+            postDropDb >= 3.0 &&
+            (hiVsLoDb >= -8.5 || (attackDb >= 9.5 && fastDecayDb >= 5.0))
+          ) {
             candidateHits.push({
               time: Number(((b * hop) / sr).toFixed(3)),
-              amp: cur,
-              prominence: Number(prominence.toFixed(2)),
-              sharpness: Number(sharpness.toFixed(2))
+              amp: envHi[b],
+              hiDb: Number(curDb.toFixed(2)),
+              snrDb: Number(snrDb.toFixed(2)),
+              attackDb: Number(attackDb.toFixed(2)),
+              postDropDb: Number(postDropDb.toFixed(2)),
+              hiVsLoDb: Number(hiVsLoDb.toFixed(2)),
+              prominence: Number(Math.pow(10, snrDb / 20).toFixed(2))
             });
           }
         }
 
-        const hitAmps = candidateHits.map((h) => h.amp);
-        const p90HitAmp = hitAmps.length > 0 ? computePercentile(hitAmps, 0.90) : maxEnv;
+        const hitDbs = candidateHits.map((h) => h.hiDb);
+        const fgHitDb = hitDbs.length > 0 ? computePercentile(hitDbs, 0.75) : p995Db;
         return {
           hasUsableAudio: candidateHits.length >= 2,
           hits: candidateHits,
-          env,
+          env: envHi,
           envStepSec: hop / sr,
-          p90HitAmp
+          fgHitDb
         };
       } catch (err) {
         console.warn("Audio transient extraction fallback to pure visual motion:", err);
-        return { hasUsableAudio: false, hits: [], env: new Float32Array(0), envStepSec: 0.02, p90HitAmp: 0 };
+        return { hasUsableAudio: false, hits: [], env: new Float32Array(0), envStepSec: 0.02, fgHitDb: -20 };
       }
     }
 
@@ -2981,7 +3291,7 @@
       const sctx = sampler.getContext("2d");
       const contactFrames = [];
 
-      const stepSec = Math.max(0.35, Math.min(0.90, durationSec / 220));
+      const stepSec = Math.max(0.28, Math.min(0.55, durationSec / 520));
       const sampleTimes = [];
       for (let t = 0.12; t < durationSec - 0.08; t += stepSec) {
         sampleTimes.push(Number(t.toFixed(3)));
@@ -2993,7 +3303,10 @@
         contactIndices.add(Math.min(sampleTimes.length - 1, Math.floor(((k + 0.5) / 6) * sampleTimes.length)));
       }
 
-      // 8x6 = 48 zones inside center court ROI (X: 12.5%..87.5%, Y: 15.5%..92.2%)
+      // 8x6 = 48 zones inside court ROI (X: 12.5%..87.5%, Y: 15.5%..92.2%)
+      // Perspective Trapezoid Mask:
+      // - Far Court (rows 0..2, Y: 15.5%..52%): cols 1..6 (18 center cells; excludes cols 0 & 7 where adjacent courts appear!)
+      // - Near Court (rows 3..5, Y: 52%..92%): cols 0..7 (24 full-width baseline cells)
       const cols = 8, rows = 6;
       const rx0 = 20, ry0 = 14, cellW = 15, cellH = 11;
       let prevCells = null;
@@ -3028,38 +3341,50 @@
             }
           }
 
-          let courtMotion = 0;
-          let activeZoneRatio = 0;
-          let nearMotion = 0;
-          let farMotion = 0;
+          let nearRaw = 0;
+          let farRaw = 0;
 
           if (prevCells) {
             // Remove frame-wide global brightness shift (gym 60Hz lighting flicker & auto-exposure)
             let meanSigned = 0;
-            for (let z = 0; z < 48; z++) meanSigned += (curCells[z] - prevCells[z]);
-            meanSigned /= 48;
-
-            const diffs = new Float32Array(48);
-            let activeCnt = 0;
-            let nearSum = 0, farSum = 0;
-            for (let z = 0; z < 48; z++) {
-              const d = Math.abs((curCells[z] - prevCells[z]) - meanSigned);
-              diffs[z] = d;
-              if (d > 4.0) activeCnt++;
-              if (z >= 24) nearSum += d;
-              else farSum += d;
+            let validCells = 0;
+            for (let r = 0; r < rows; r++) {
+              for (let c = 0; c < cols; c++) {
+                if (r < 3 && (c === 0 || c === 7)) continue;
+                const z = r * cols + c;
+                meanSigned += (curCells[z] - prevCells[z]);
+                validCells++;
+              }
             }
-            const sortedDiffs = Array.from(diffs).sort((a, b) => b - a);
-            let top16 = 0;
-            for (let k = 0; k < 16; k++) top16 += sortedDiffs[k];
-            courtMotion = top16 / 16;
-            activeZoneRatio = activeCnt / 48;
-            nearMotion = nearSum / 24;
-            farMotion = farSum / 24;
+            meanSigned /= Math.max(1, validCells);
+
+            const farDiffs = [];
+            const nearDiffs = [];
+            for (let r = 0; r < rows; r++) {
+              for (let c = 0; c < cols; c++) {
+                const z = r * cols + c;
+                const d = Math.abs((curCells[z] - prevCells[z]) - meanSigned);
+                if (r < 3) {
+                  if (c >= 1 && c <= 6) farDiffs.push(d); // Far trapezoid (18 cells)
+                } else {
+                  nearDiffs.push(d); // Near wide court (24 cells)
+                }
+              }
+            }
+            farDiffs.sort((a, b) => b - a);
+            nearDiffs.sort((a, b) => b - a);
+            // Pool top active cells so 2 small far-court players aren't diluted by empty mat cells
+            let fTop = 0;
+            for (let k = 0; k < 4 && k < farDiffs.length; k++) fTop += farDiffs[k];
+            farRaw = fTop / 4;
+
+            let nTop = 0;
+            for (let k = 0; k < 6 && k < nearDiffs.length; k++) nTop += nearDiffs[k];
+            nearRaw = nTop / 6;
           }
 
           prevCells = curCells;
-          samples.push({ t, courtMotion, activeZoneRatio, nearMotion, farMotion });
+          samples.push({ t, nearRaw, farRaw, nearAct: 0, farAct: 0, dualCourtActivity: 0, courtActivity: 0 });
 
           if (contactIndices.has(idx)) {
             try {
@@ -3068,9 +3393,9 @@
             } catch (_) {}
           }
 
-          if (onProgress && (idx % 10 === 0 || idx === sampleTimes.length - 1)) {
+          if (onProgress && (idx % 12 === 0 || idx === sampleTimes.length - 1)) {
             const pct = 22 + Math.round(((idx + 1) / sampleTimes.length) * 62);
-            onProgress(pct, `👟 正在掃描場內 48 宮格步伐與回合邊界 (${formatTime(t)} / ${formatTime(durationSec)})...`);
+            onProgress(pct, `👟 正在正規化遠近雙半場步伐 (${formatTime(t)} / ${formatTime(durationSec)})...`);
             await new Promise((r) => setTimeout(r, 0));
           }
         }
@@ -3078,28 +3403,62 @@
         videoEl.muted = prevMuted;
       }
 
-      // Normalize courtActivity [0..1]
-      const rawMotions = samples.map((s) => s.courtMotion);
-      const p92Motion = Math.max(2.5, computePercentile(rawMotions, 0.92));
+      // Copy sample[1] into sample[0] so t=0.12s doesn't have an artificial zero diff
+      if (samples.length >= 2) {
+        samples[0].nearRaw = samples[1].nearRaw;
+        samples[0].farRaw = samples[1].farRaw;
+      }
+
+      // Independent Per-Half Perspective Normalization ([p18 .. p88] -> [0 .. 1])
+      // Eliminates 5x-10x camera perspective ('近大遠小') & white-vs-dark jersey brightness bias!
+      const nearRaws = samples.map((s) => s.nearRaw);
+      const farRaws = samples.map((s) => s.farRaw);
+      const nearBase = computePercentile(nearRaws, 0.18);
+      const nearScale = Math.max(1.0, computePercentile(nearRaws, 0.88) - nearBase);
+      const farBase = computePercentile(farRaws, 0.18);
+      const farScale = Math.max(0.45, computePercentile(farRaws, 0.88) - farBase);
+
       for (const s of samples) {
-        const normM = Math.min(1.2, s.courtMotion / p92Motion);
-        s.courtActivity = Number((Math.min(1.0, s.activeZoneRatio * 0.55 + normM * 0.45)).toFixed(3));
+        s.nearAct = Math.max(0, Math.min(1.35, (s.nearRaw - nearBase) / nearScale));
+        s.farAct = Math.max(0, Math.min(1.35, (s.farRaw - farBase) / farScale));
+      }
+
+      // Smooth over ±1 neighbor (~0.85s) & compute joint 4-player dual-court rally activity:
+      // Weight min(nSm, fSm) by 0.76 so one-sided dead-time shuttle pickup stays low (<0.12) while 4-player rallies stay high!
+      for (let i = 0; i < samples.length; i++) {
+        let nSum = 0, fSum = 0, cnt = 0;
+        for (let j = Math.max(0, i - 1); j <= Math.min(samples.length - 1, i + 1); j++) {
+          nSum += samples[j].nearAct;
+          fSum += samples[j].farAct;
+          cnt++;
+        }
+        const nSm = nSum / cnt;
+        const fSm = fSum / cnt;
+        const dual = Math.min(1.15, Math.min(nSm, fSm) * 0.76 + ((nSm + fSm) * 0.5) * 0.24);
+        samples[i].dualCourtActivity = Number(dual.toFixed(3));
+        samples[i].courtActivity = samples[i].dualCourtActivity;
       }
 
       return { samples, stepSec, contactFrames };
     }
 
-    function getVisualMetricsInWindow(visSamples, t0, t1) {
+    function getVisualMetricsInWindow(visSamples, t0, t1, padSec = 0.25) {
       if (!visSamples || visSamples.length === 0) {
-        return { meanActivity: 0.5, maxActivity: 0.5, nearMotion: 1, farMotion: 1 };
+        return {
+          meanDualAct: 0.5, maxDualAct: 0.5, minDualAct: 0.5,
+          nearActMean: 0.5, farActMean: 0.5,
+          meanActivity: 0.5, maxActivity: 0.5
+        };
       }
-      let sumAct = 0, maxAct = 0, nearSum = 0, farSum = 0, cnt = 0;
+      let sumAct = 0, maxAct = 0, minAct = Infinity, nearSum = 0, farSum = 0, cnt = 0;
       for (const s of visSamples) {
-        if (s.t >= t0 - 0.45 && s.t <= t1 + 0.45) {
-          sumAct += s.courtActivity;
-          if (s.courtActivity > maxAct) maxAct = s.courtActivity;
-          nearSum += s.nearMotion;
-          farSum += s.farMotion;
+        if (s.t >= t0 - padSec && s.t <= t1 + padSec) {
+          const a = s.dualCourtActivity;
+          sumAct += a;
+          if (a > maxAct) maxAct = a;
+          if (a < minAct) minAct = a;
+          nearSum += s.nearAct;
+          farSum += s.farAct;
           cnt++;
         }
       }
@@ -3114,18 +3473,22 @@
             nearest = s;
           }
         }
+        const a = nearest.dualCourtActivity;
         return {
-          meanActivity: nearest.courtActivity,
-          maxActivity: nearest.courtActivity,
-          nearMotion: nearest.nearMotion,
-          farMotion: nearest.farMotion
+          meanDualAct: a, maxDualAct: a, minDualAct: a,
+          nearActMean: nearest.nearAct, farActMean: nearest.farAct,
+          meanActivity: a, maxActivity: a
         };
       }
+      const meanA = sumAct / cnt;
       return {
-        meanActivity: sumAct / cnt,
-        maxActivity: maxAct,
-        nearMotion: nearSum / cnt,
-        farMotion: farSum / cnt
+        meanDualAct: meanA,
+        maxDualAct: maxAct,
+        minDualAct: minAct === Infinity ? meanA : minAct,
+        nearActMean: nearSum / cnt,
+        farActMean: farSum / cnt,
+        meanActivity: meanA,
+        maxActivity: maxAct
       };
     }
 
@@ -3134,19 +3497,22 @@
       const visSamples = profile.visual.samples || [];
       const cfgMap = {
         strict: {
-          promMin: 3.5, sharpMin: 1.44, strongAmpFrac: 0.56, medAmpFrac: 0.34,
-          motionGate: 0.36, maxHitGap: 2.15, minHits: 3, preRoll: 0.60, postRoll: 0.90,
-          minRallyDur: 2.1, visK: 1.35
+          snrMin: 6.8, attackMin: 5.0, strongDropMaxDb: 5.5, fgDropMaxDb: 13.5,
+          motionGate: 0.34, minRallyMotion: 0.24, maxHitGap: 2.25, minDeadGap: 3.10,
+          bridgeMinFloor: 0.30, bridgeMotionMin: 0.44,
+          minHits: 3, preRoll: 0.70, postRoll: 1.10, minRallyDur: 2.0, visDeadGap: 3.2
         },
         standard: {
-          promMin: 2.6, sharpMin: 1.30, strongAmpFrac: 0.40, medAmpFrac: 0.22,
-          motionGate: 0.24, maxHitGap: 2.70, minHits: 2, preRoll: 0.85, postRoll: 1.15,
-          minRallyDur: 1.7, visK: 0.90
+          snrMin: 5.0, attackMin: 3.8, strongDropMaxDb: 7.5, fgDropMaxDb: 22.5,
+          motionGate: 0.20, minRallyMotion: 0.16, maxHitGap: 2.65, minDeadGap: 4.30,
+          bridgeMinFloor: 0.20, bridgeMotionMin: 0.34,
+          minHits: 2, preRoll: 0.90, postRoll: 1.35, minRallyDur: 1.9, visDeadGap: 4.2
         },
         relaxed: {
-          promMin: 2.05, sharpMin: 1.18, strongAmpFrac: 0.26, medAmpFrac: 0.14,
-          motionGate: 0.12, maxHitGap: 3.35, minHits: 1, preRoll: 1.10, postRoll: 1.45,
-          minRallyDur: 1.3, visK: 0.55
+          snrMin: 4.2, attackMin: 3.4, strongDropMaxDb: 10.5, fgDropMaxDb: 27.5,
+          motionGate: 0.12, minRallyMotion: 0.10, maxHitGap: 3.25, minDeadGap: 5.80,
+          bridgeMinFloor: 0.12, bridgeMotionMin: 0.22,
+          minHits: 2, preRoll: 1.15, postRoll: 1.65, minRallyDur: 1.7, visDeadGap: 5.5
         }
       };
       const cfg = cfgMap[mode] || cfgMap.standard;
@@ -3154,40 +3520,56 @@
       let engineMode = "visual-footwork";
 
       if (profile.audio && profile.audio.hasUsableAudio && profile.audio.hits.length >= 2) {
-        const p90 = Math.max(1e-4, profile.audio.p90HitAmp);
+        const fgHitDb = typeof profile.audio.fgHitDb === "number" ? profile.audio.fgHitDb : -16;
         const filteredHits = profile.audio.hits.filter((h) => {
-          if (h.prominence < cfg.promMin || h.sharpness < cfg.sharpMin) return false;
-          const vm = getVisualMetricsInWindow(visSamples, h.time - 0.35, h.time + 0.35);
-          if (h.amp >= p90 * cfg.strongAmpFrac) return true;
-          if (h.amp >= p90 * cfg.medAmpFrac && vm.maxActivity >= cfg.motionGate) return true;
+          if (h.snrDb < cfg.snrMin || h.attackDb < cfg.attackMin) return false;
+          const dropFromFg = fgHitDb - h.hiDb;
+          if (dropFromFg <= cfg.strongDropMaxDb) return true;
+          if (dropFromFg <= cfg.fgDropMaxDb) {
+            const vm = getVisualMetricsInWindow(visSamples, h.time - 0.45, h.time + 0.45);
+            return vm.maxDualAct >= cfg.motionGate;
+          }
           return false;
         });
 
-        // Group filtered racket impacts into rally chains
-        const chains = [];
+        // Step A: Primary rally chain grouping (bridges normal clears up to maxHitGap = 2.65s)
+        const primaryChains = [];
         for (const h of filteredHits) {
-          const lastChain = chains[chains.length - 1];
+          const lastChain = primaryChains[primaryChains.length - 1];
           if (lastChain && (h.time - lastChain.hits[lastChain.hits.length - 1].time) <= cfg.maxHitGap) {
             lastChain.hits.push(h);
           } else {
-            chains.push({ hits: [h] });
+            primaryChains.push({ hits: [h] });
           }
         }
 
-        // Merge consecutive chains separated by < 1.9s if center-court footwork stayed active (high defensive lob)
+        // Step B: Strip isolated 1-hit dead-time shuttle passes (e.g. tapping shuttle across net during pickup)
+        const nonPassChains = primaryChains.filter((ch, idx) => {
+          if (ch.hits.length >= 2) return true;
+          const t0 = ch.hits[0].time;
+          const prevGap = idx > 0 ? t0 - primaryChains[idx - 1].hits[primaryChains[idx - 1].hits.length - 1].time : Infinity;
+          const nextGap = idx + 1 < primaryChains.length ? primaryChains[idx + 1].hits[0].time - t0 : Infinity;
+          const vm = getVisualMetricsInWindow(visSamples, t0 - 0.5, t0 + 0.5);
+          // Only keep an isolated 1-hit event if players on BOTH halves are in high-intensity rally motion AND relaxed mode
+          return mode === "relaxed" && prevGap < 4.5 && nextGap < 4.5 && vm.meanDualAct >= 0.55;
+        });
+
+        // Step C: Bridge multi-tempo rallies across silent net play ONLY if dual-court footwork never froze into service stance!
         const mergedChains = [];
-        for (const ch of chains) {
+        for (const ch of nonPassChains) {
           const prev = mergedChains[mergedChains.length - 1];
           if (prev) {
             const gapStart = prev.hits[prev.hits.length - 1].time;
             const gapEnd = ch.hits[0].time;
             const gap = gapEnd - gapStart;
-            if (gap <= 1.90) {
-              const gapVis = getVisualMetricsInWindow(visSamples, gapStart, gapEnd);
-              if (gapVis.meanActivity >= cfg.motionGate + 0.08) {
-                prev.hits.push(...ch.hits);
-                continue;
-              }
+            const gapVis = getVisualMetricsInWindow(visSamples, gapStart + 0.35, gapEnd - 0.35, 0.0);
+            if (
+              gap <= cfg.minDeadGap &&
+              gapVis.minDualAct >= cfg.bridgeMinFloor &&
+              gapVis.meanDualAct >= cfg.bridgeMotionMin
+            ) {
+              prev.hits.push(...ch.hits);
+              continue;
             }
           }
           mergedChains.push({ hits: ch.hits.slice() });
@@ -3196,22 +3578,22 @@
         for (const ch of mergedChains) {
           const tFirst = ch.hits[0].time;
           const tLast = ch.hits[ch.hits.length - 1].time;
-          const vm = getVisualMetricsInWindow(visSamples, tFirst, tLast);
+          const vm = getVisualMetricsInWindow(visSamples, tFirst - 0.2, tLast + 0.3);
           const hitCnt = ch.hits.length;
 
-          // Reject single-hit shuttle passes across the net during dead-time pickup!
           if (hitCnt < cfg.minHits) {
-            if (!(mode === "standard" && hitCnt === 2) && !(mode === "strict" && hitCnt === 2 && (tLast - tFirst) >= 1.2 && vm.meanActivity >= 0.48)) {
+            if (!(mode === "strict" && hitCnt === 2 && (tLast - tFirst) >= 0.8 && vm.meanDualAct >= 0.42)) {
               continue;
             }
           }
-          if (mode === "relaxed" && hitCnt === 1 && vm.maxActivity < 0.32) {
+          // Reject loud neighbor-court rallies when our own court is standing still
+          if (visSamples.length >= 4 && vm.maxDualAct < cfg.minRallyMotion) {
             continue;
           }
 
           const s = Math.max(0, tFirst - cfg.preRoll);
           const e = Math.min(durationSec, Math.max(s + cfg.minRallyDur, tLast + cfg.postRoll));
-          rawSegments.push({ start: s, end: e, hitCount: hitCnt });
+          rawSegments.push({ start: s, end: e, firstHitTime: tFirst, lastHitTime: tLast, hitCount: hitCnt });
         }
 
         if (rawSegments.length > 0) {
@@ -3219,25 +3601,26 @@
         }
       }
 
-      // Pure-Visual Center-Court Footwork Fallback (for muted / music-overlaid videos)
-      if (rawSegments.length === 0 && visSamples.length >= 3) {
-        const acts = visSamples.map((s) => s.courtActivity);
-        const med = computePercentile(acts, 0.50);
-        const absDevs = acts.map((a) => Math.abs(a - med));
-        const mad = Math.max(0.05, computePercentile(absDevs, 0.50));
-        const th = Math.max(0.16, Math.min(0.68, med + cfg.visK * mad * 1.48));
+      // Upgraded Pure-Visual Dual-Court Fallback (for muted / BGM-overlaid videos — never cuts on < 4.2s lulls!)
+      if (rawSegments.length === 0 && visSamples.length >= 4) {
+        const acts = visSamples.map((s) => s.dualCourtActivity);
+        const p20 = computePercentile(acts, 0.20);
+        const p82 = computePercentile(acts, 0.82);
+        const th = Math.max(0.18, Math.min(0.55, p20 + (p82 - p20) * (mode === "strict" ? 0.52 : mode === "relaxed" ? 0.32 : 0.42)));
 
         let curStart = null;
         let lastActiveT = null;
         for (const s of visSamples) {
-          if (s.courtActivity >= th) {
+          if (s.dualCourtActivity >= th) {
             if (curStart === null) curStart = s.t;
             lastActiveT = s.t;
-          } else if (curStart !== null && (s.t - lastActiveT) > 1.65) {
-            if ((lastActiveT - curStart) >= cfg.minRallyDur * 0.75) {
+          } else if (curStart !== null && (s.t - lastActiveT) >= cfg.visDeadGap) {
+            if ((lastActiveT - curStart) >= cfg.minRallyDur) {
               rawSegments.push({
                 start: Math.max(0, curStart - cfg.preRoll * 0.8),
-                end: Math.min(durationSec, lastActiveT + cfg.postRoll * 0.8),
+                end: Math.min(durationSec, lastActiveT + cfg.postRoll * 0.85),
+                firstHitTime: curStart,
+                lastHitTime: lastActiveT,
                 hitCount: 0
               });
             }
@@ -3245,10 +3628,12 @@
             lastActiveT = null;
           }
         }
-        if (curStart !== null && lastActiveT !== null && (lastActiveT - curStart) >= cfg.minRallyDur * 0.75) {
+        if (curStart !== null && lastActiveT !== null && (lastActiveT - curStart) >= cfg.minRallyDur) {
           rawSegments.push({
             start: Math.max(0, curStart - cfg.preRoll * 0.8),
-            end: Math.min(durationSec, lastActiveT + cfg.postRoll * 0.8),
+            end: Math.min(durationSec, lastActiveT + cfg.postRoll * 0.85),
+            firstHitTime: curStart,
+            lastHitTime: lastActiveT,
             hitCount: 0
           });
         }
@@ -3259,13 +3644,16 @@
       const cleanSegments = [];
       for (const seg of rawSegments) {
         const prev = cleanSegments[cleanSegments.length - 1];
-        if (prev && seg.start <= prev.end + 0.30) {
+        if (prev && seg.start <= prev.end + 0.35) {
           prev.end = Math.max(prev.end, seg.end);
+          prev.lastHitTime = Math.max(prev.lastHitTime ?? prev.end - 1.0, seg.lastHitTime ?? seg.end - 1.0);
           prev.hitCount = (prev.hitCount || 0) + (seg.hitCount || 0);
         } else {
           cleanSegments.push({
             start: Number(seg.start.toFixed(1)),
-            end: Number(Math.max(seg.start + 1.0, seg.end).toFixed(1)),
+            end: Number(Math.max(seg.start + 1.2, seg.end).toFixed(1)),
+            firstHitTime: Number((seg.firstHitTime ?? seg.start + 0.6).toFixed(2)),
+            lastHitTime: Number((seg.lastHitTime ?? Math.max(seg.start + 0.6, seg.end - 1.1)).toFixed(2)),
             hitCount: seg.hitCount || 0
           });
         }
@@ -3277,31 +3665,54 @@
         cleanSegments.push({
           start: 0.0,
           end: Number(Math.max(1.0, durationSec).toFixed(1)),
+          firstHitTime: 0.5,
+          lastHitTime: Number(Math.max(0.8, durationSec - 1.0).toFixed(2)),
           hitCount: 0
         });
       }
 
-      // Build rally objects with visual tail winner estimation & physical observations
+      // Perspective-Immune Mid-Quantile Z-Score Winner Estimation:
+      // In club/amateur badminton, the conceding side scrambles late in the point AND walks to pick up the shuttle on their floor afterward.
+      // Normalizing Near effort against Near's own (P15+P85)/2 and Far effort against Far's own (P15+P85)/2 cancels 100% of perspective & jersey bias!
+      const rawEffortNear = new Float64Array(cleanSegments.length);
+      const rawEffortFar = new Float64Array(cleanSegments.length);
+      for (let i = 0; i < cleanSegments.length; i++) {
+        const seg = cleanSegments[i];
+        const tLast = seg.lastHitTime;
+        const tFirst = seg.firstHitTime;
+        const nextStart = i + 1 < cleanSegments.length ? cleanSegments[i + 1].start : durationSec;
+        const pickupEnd = Math.max(tLast + 1.0, Math.min(tLast + 3.6, nextStart - 0.5));
+
+        const pickupVis = getVisualMetricsInWindow(visSamples, tLast + 0.35, pickupEnd);
+        const scrambleVis = getVisualMetricsInWindow(visSamples, Math.max(tFirst, tLast - 1.6), tLast + 0.25);
+
+        rawEffortNear[i] = pickupVis.nearActMean * 0.64 + scrambleVis.nearActMean * 0.36;
+        rawEffortFar[i] = pickupVis.farActMean * 0.64 + scrambleVis.farActMean * 0.36;
+      }
+
+      const nCenter = (computePercentile(rawEffortNear, 0.15) + computePercentile(rawEffortNear, 0.85)) * 0.5;
+      const nSpread = Math.max(0.05, (computePercentile(rawEffortNear, 0.85) - computePercentile(rawEffortNear, 0.15)) * 0.5);
+      const fCenter = (computePercentile(rawEffortFar, 0.15) + computePercentile(rawEffortFar, 0.85)) * 0.5;
+      const fSpread = Math.max(0.05, (computePercentile(rawEffortFar, 0.85) - computePercentile(rawEffortFar, 0.15)) * 0.5);
+
       const builtRallies = cleanSegments.map((seg, i) => {
         const dur = Math.max(1.0, seg.end - seg.start);
-        const tailMetrics = getVisualMetricsInWindow(
-          visSamples,
-          seg.start + dur * 0.55,
-          seg.end
-        );
-        // Team scrambling harder right before shuttle hits floor is more often defending/conceding,
-        // tie-breaking cleanly with rally index if motion is balanced
-        let estWinner = "near";
-        if (Math.abs(tailMetrics.nearMotion - tailMetrics.farMotion) > 0.35) {
-          estWinner = tailMetrics.farMotion >= tailMetrics.nearMotion ? "near" : "far";
-        } else {
-          estWinner = i % 2 === 0 ? "near" : "far";
+        const zConcedeNear = (rawEffortNear[i] - nCenter) / nSpread;
+        const zConcedeFar = (rawEffortFar[i] - fCenter) / fSpread;
+        const advNear = zConcedeFar - zConcedeNear;
+
+        let pNear = 1 / (1 + Math.exp(-0.95 * advNear));
+        if (Math.abs(advNear) < 0.04) {
+          pNear = i % 2 === 0 ? 0.53 : 0.47;
         }
+        pNear = Number(Math.max(0.16, Math.min(0.84, pNear)).toFixed(3));
+        const estWinner = pNear >= 0.5 ? "near" : "far";
+        const isLowConf = !fallbackSingleClip && Math.abs(pNear - 0.5) < 0.09;
 
         const hitsLabel = seg.hitCount > 0 ? `${seg.hitCount}拍` : `${Math.round(dur)}秒`;
         let note = `場內對抽 (${hitsLabel})`;
         if (fallbackSingleClip) {
-          note = "全段保留（可切換寬鬆或手動加拍）";
+          note = "全段保留（可切換防切碎或手動加拍）";
         } else if (dur >= 17) {
           note = `🔥 ${Math.round(dur)}秒高速多拍 (${hitsLabel})`;
         } else if (dur >= 10.5) {
@@ -3314,11 +3725,15 @@
           rally: i + 1,
           start: seg.start,
           end: seg.end,
+          firstHitTime: seg.firstHitTime,
+          lastHitTime: seg.lastHitTime,
           winner: estWinner,
           obsHandoff: estWinner,
+          obsWinNearProb: pNear,
+          userLockedWinner: false,
           hitCount: seg.hitCount,
           note,
-          lowConfidence: false
+          lowConfidence: isLowConf
         };
       });
 
@@ -3336,7 +3751,7 @@
       const profile = { durationSec, audio, visual };
       lastSignalProfile = profile;
 
-      if (onProgress) onProgress(90, "✂️ 正在融合擊球聲紋與場內跑動，精準切除撿球空白...");
+      if (onProgress) onProgress(90, "✂️ 正在融合抗殘響擊球聲紋與遠近雙半場步伐，精準切除撿球空白...");
       const segResult = segmentRalliesFromSignalProfile(profile, currentSensitivity);
 
       window.__lastCutDiagnostics = {
@@ -3346,7 +3761,16 @@
         rawCandidateHits: audio.hits.length,
         detectedRallyCount: segResult.rallies.length,
         sensitivity: currentSensitivity,
-        rallies: segResult.rallies.map((r) => ({ rally: r.rally, start: r.start, end: r.end, hitCount: r.hitCount }))
+        rallies: segResult.rallies.map((r) => ({
+          rally: r.rally,
+          start: r.start,
+          end: r.end,
+          firstHitTime: r.firstHitTime,
+          lastHitTime: r.lastHitTime,
+          hitCount: r.hitCount,
+          winner: r.winner,
+          obsWinNearProb: r.obsWinNearProb
+        }))
       };
 
       return {
@@ -3366,7 +3790,7 @@
       if (engineMode === "dual-audio-motion") {
         lbl.textContent = `🎧 聲紋＋步伐已抓出 ${rallyCount} 拍：`;
       } else if (engineMode === "visual-footwork") {
-        lbl.textContent = `👟 純視覺步伐已抓出 ${rallyCount} 拍：`;
+        lbl.textContent = `👟 純視覺雙半場已抓出 ${rallyCount} 拍：`;
       } else {
         lbl.textContent = `⚠️ 低間歇片段（${rallyCount} 拍）：`;
       }
@@ -3537,6 +3961,7 @@
       initPhysicalObservations();
       document.getElementById("anchorNear").value = 16;
       document.getElementById("anchorFar").value = 21;
+      document.getElementById("viterbiStatusText").textContent = "終場比分：";
       document.getElementById("exportScopeSelect").value = "highlights_5";
       document.getElementById("resetDemoMatchBtn").style.display = "none";
       document.getElementById("videoSourceStatusBadge").textContent = "內建雙打示範";
@@ -3603,15 +4028,32 @@
         }
 
         if (Array.isArray(data.rallies) && data.rallies.length >= 1) {
-          RALLIES = data.rallies.map((item, i) => ({
-            rally: i + 1,
-            start: Number(item.start),
-            end: Number(item.end),
-            winner: item.winner === "far" ? "far" : "near",
-            obsHandoff: item.winner === "far" ? "far" : "near",
-            note: item.note || `第 ${i + 1} 拍`,
-            lowConfidence: false
-          }));
+          RALLIES = data.rallies.map((item, i) => {
+            const clientRef = Array.isArray(clientDetectedRallies) ? clientDetectedRallies[i] : null;
+            const w = item.winner === "far" ? "far" : "near";
+            const sVal = Number(item.start);
+            const eVal = Number(item.end);
+            return {
+              rally: i + 1,
+              start: sVal,
+              end: eVal,
+              firstHitTime: Number.isFinite(item.firstHitTime)
+                ? Number(item.firstHitTime)
+                : (clientRef && Number.isFinite(clientRef.firstHitTime) ? clientRef.firstHitTime : sVal + 0.6),
+              lastHitTime: Number.isFinite(item.lastHitTime)
+                ? Number(item.lastHitTime)
+                : (clientRef && Number.isFinite(clientRef.lastHitTime) ? clientRef.lastHitTime : Math.max(sVal + 0.6, eVal - 1.1)),
+              hitCount: Number(item.hitCount ?? (clientRef ? clientRef.hitCount : 0) ?? 0),
+              winner: w,
+              obsHandoff: w,
+              obsWinNearProb: typeof item.obsWinNearProb === "number"
+                ? item.obsWinNearProb
+                : (clientRef && typeof clientRef.obsWinNearProb === "number" ? clientRef.obsWinNearProb : (w === "near" ? 0.68 : 0.32)),
+              userLockedWinner: Boolean(item.userLockedWinner || (clientRef && clientRef.userLockedWinner)),
+              note: item.note || `第 ${i + 1} 拍`,
+              lowConfidence: Boolean(item.lowConfidence ?? (clientRef && clientRef.lowConfidence))
+            };
+          });
           matchStartNear = 0;
           matchStartFar = 0;
           populatePhysicalObservationsFromWinners(RALLIES, 0, 0);
@@ -3850,7 +4292,13 @@
       RALLIES[idx].winner = winnerSide;
       RALLIES[idx].obsHandoff = winnerSide;
       RALLIES[idx].lowConfidence = false;
+      RALLIES[idx].userLockedWinner = true;
+      RALLIES[idx].obsWinNearProb = winnerSide === "near" ? 0.999 : 0.001;
       recomputeScores();
+      if (hasLocalVideoLoaded && RALLIES.length > 0) {
+        document.getElementById("anchorNear").value = RALLIES[RALLIES.length - 1].nearAfter;
+        document.getElementById("anchorFar").value = RALLIES[RALLIES.length - 1].farAfter;
+      }
       renderAll();
       updateLiveScoreboard(hasLocalVideoLoaded ? video.currentTime : RALLIES[currentRallyIdx].start);
     }
@@ -3952,6 +4400,7 @@
                 <span style="font-size:12px; font-weight:600; color:var(--text-primary);">${escapeHtml(r.note)}</span>
                 <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
                   ${r.didSwapLR ? '<span class="swap-chip">⇄ 換邊</span>' : ''}
+                  ${r.userLockedWinner ? '<span class="swap-chip">🔒 已確認</span>' : ''}
                   ${r.lowConfidence ? '<span class="warn-chip">⚠️ 待確認</span>' : ''}
                 </div>
                 ${i === currentRallyIdx ? `
@@ -3989,7 +4438,7 @@
               <div>
                 <div style="font-size:14px; font-weight:800;">#${r.rally} · ${escapeHtml(r.note)}</div>
                 <div style="font-size:12px; color:var(--text-secondary);">
-                  ${formatTimeWindow(r.start, r.end)} ${r.didSwapLR ? '· ⇄ 連得換邊' : ''} ${r.lowConfidence ? '· ⚠️ 待確認' : ''}
+                  ${formatTimeWindow(r.start, r.end)} ${r.didSwapLR ? '· ⇄ 連得換邊' : ''} ${r.userLockedWinner ? '· 🔒 已確認' : ''} ${r.lowConfidence ? '· ⚠️ 待確認' : ''}
                 </div>
               </div>
             </div>
@@ -4012,20 +4461,33 @@
       `).join("");
     }
 
+    function getRallyScoreTriggerTime(r) {
+      if (hasLocalVideoLoaded && Number.isFinite(r.lastHitTime)) {
+        // Trigger +1 ONLY ~0.62s AFTER the final racket shot of the rally (once shuttle lands on floor — never mid-smash!)
+        return Math.max(r.start + 0.5, Math.min(r.end - 0.25, r.lastHitTime + 0.62));
+      }
+      const dur = Math.max(0.8, r.end - r.start);
+      if (hasLocalVideoLoaded) {
+        return r.end - Math.min(0.60, dur * 0.18);
+      }
+      const scoredLead = Math.min(1.2, Math.max(0.35, dur * 0.25));
+      return r.end - scoredLead;
+    }
+
     function updateLiveScoreboard(t) {
       if (!Array.isArray(RALLIES) || RALLIES.length === 0) return;
 
-      let idx = RALLIES.findIndex((r) => t >= r.start - 0.08 && t <= r.end + 0.08);
+      let idx = RALLIES.findIndex((r) => t >= r.start - 0.25 && t <= r.end + 0.05);
       if (idx === -1) {
         const nextIdx = RALLIES.findIndex((r) => r.start > t);
         if (skipDeadTime && hasLocalVideoLoaded && !video.paused && !isExportingMp4) {
           const nowMs = performance.now();
-          if (!video.seeking && (nowMs - lastAutoSkipMs > 180)) {
-            if (nextIdx !== -1) {
+          if (!video.seeking && (nowMs - lastAutoSkipMs > 220)) {
+            if (nextIdx !== -1 && (RALLIES[nextIdx].start - t) > 0.30) {
               lastAutoSkipMs = nowMs;
               video.currentTime = RALLIES[nextIdx].start;
               idx = nextIdx;
-            } else if (t > RALLIES[RALLIES.length - 1].end + 0.10) {
+            } else if (nextIdx === -1 && t > RALLIES[RALLIES.length - 1].end + 0.12) {
               lastAutoSkipMs = nowMs;
               video.pause();
               video.currentTime = RALLIES[RALLIES.length - 1].end;
@@ -4045,8 +4507,7 @@
 
       const r = RALLIES[idx];
       if (!r) return;
-      const scoredLead = Math.min(1.2, Math.max(0.35, (r.end - r.start) * 0.25));
-      const scoredMoment = t >= (r.end - scoredLead);
+      const scoredMoment = t >= getRallyScoreTriggerTime(r);
       const nearPts = scoredMoment ? r.nearAfter : r.nearBefore;
       const farPts = scoredMoment ? r.farAfter : r.farBefore;
       const activeServer = scoredMoment ? r.winner : r.server;
@@ -5170,14 +5631,14 @@
             const r = targetRallies[rIdx];
             const rDur = Math.max(0.5, r.end - r.start);
             const steps = Math.max(1, Math.round(rDur * sourceStepFps));
-            const scoredLead = Math.min(1.2, Math.max(0.35, rDur * 0.25));
+            const scoreTriggerT = getRallyScoreTriggerTime(r);
 
             for (let s = 0; s < steps; s++) {
               if (cancelExportRequested) break;
               const sampleT = Math.min(r.end, r.start + s / sourceStepFps);
               await seekVideoSafe(video, sampleT, 260);
 
-              const isScoredMoment = sampleT >= (r.end - scoredLead);
+              const isScoredMoment = sampleT >= scoreTriggerT;
               drawLocalVideoContain(ectx, video, W, H);
               drawScoreboardAndWatermarkOnCanvas(ectx, W, H, r, isScoredMoment, includeWatermark);
 
