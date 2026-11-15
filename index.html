@@ -2,8 +2,8 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="robots" content="noindex, nofollow" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#F6F8F7" />
   <meta name="description" content="只留殺球，TM 不撿球。自動剪掉羽球撿球空白、AI 自動對齊比分，一鍵下載 1080p60 轉播計分板影片。" />
   <meta property="og:type" content="website" />
@@ -3280,6 +3280,13 @@
       }
     }
 
+    function formatContactTileTimestamp(sec) {
+      const s = Math.max(0, Number(sec) || 0);
+      const mins = Math.floor(s / 60);
+      const rem = (s % 60).toFixed(1).padStart(4, "0");
+      return `${String(mins).padStart(2, "0")}:${rem} (${s.toFixed(1)}s)`;
+    }
+
     async function extractVisualCourtMotionProfile(videoEl, durationSec, onProgress) {
       const mCanvas = document.createElement("canvas");
       const MW = 160, MH = 90;
@@ -3287,9 +3294,29 @@
       mCanvas.height = MH;
       const mctx = mCanvas.getContext("2d", { willReadFrequently: true });
 
-      const sampler = document.getElementById("samplerCanvas");
-      const sctx = sampler.getContext("2d");
+      // 4x4 Timestamped Contact-Sheet Grid (640x360 per sheet, 16 tiles of 160x90, up to 8 sheets = 128 frames)
+      const GRID_COLS = 4, GRID_ROWS = 4, TILES_PER_SHEET = 16, MAX_SHEETS = 8;
+      const sheetCanvas = document.createElement("canvas");
+      sheetCanvas.width = MW * GRID_COLS;
+      sheetCanvas.height = MH * GRID_ROWS;
+      const sheetCtx = sheetCanvas.getContext("2d");
       const contactFrames = [];
+      let currentSheetTileCount = 0;
+
+      const resetSheetCanvas = () => {
+        sheetCtx.fillStyle = "#020617";
+        sheetCtx.fillRect(0, 0, sheetCanvas.width, sheetCanvas.height);
+        currentSheetTileCount = 0;
+      };
+      const flushSheetCanvas = () => {
+        if (currentSheetTileCount > 0 && contactFrames.length < MAX_SHEETS) {
+          try {
+            contactFrames.push(sheetCanvas.toDataURL("image/jpeg", 0.68));
+          } catch (_) {}
+        }
+        resetSheetCanvas();
+      };
+      resetSheetCanvas();
 
       const stepSec = Math.max(0.28, Math.min(0.55, durationSec / 520));
       const sampleTimes = [];
@@ -3298,9 +3325,11 @@
       }
       if (sampleTimes.length === 0) sampleTimes.push(0);
 
+      const maxTotalTiles = TILES_PER_SHEET * MAX_SHEETS;
+      const targetTileCount = Math.min(sampleTimes.length, maxTotalTiles);
       const contactIndices = new Set();
-      for (let k = 0; k < 6; k++) {
-        contactIndices.add(Math.min(sampleTimes.length - 1, Math.floor(((k + 0.5) / 6) * sampleTimes.length)));
+      for (let k = 0; k < targetTileCount; k++) {
+        contactIndices.add(Math.min(sampleTimes.length - 1, Math.floor(((k + 0.5) / targetTileCount) * sampleTimes.length)));
       }
 
       // 8x6 = 48 zones inside court ROI (X: 12.5%..87.5%, Y: 15.5%..92.2%)
@@ -3386,10 +3415,28 @@
           prevCells = curCells;
           samples.push({ t, nearRaw, farRaw, nearAct: 0, farAct: 0, dualCourtActivity: 0, courtActivity: 0 });
 
-          if (contactIndices.has(idx)) {
+          if (contactIndices.has(idx) && contactFrames.length < MAX_SHEETS) {
             try {
-              sctx.drawImage(videoEl, 0, 0, 320, 180);
-              contactFrames.push(sampler.toDataURL("image/jpeg", 0.62));
+              const tileCol = currentSheetTileCount % GRID_COLS;
+              const tileRow = Math.floor(currentSheetTileCount / GRID_COLS);
+              const tx = tileCol * MW;
+              const ty = tileRow * MH;
+              sheetCtx.drawImage(mCanvas, tx, ty, MW, MH);
+              // Burn in high-contrast timestamp pill so AGY CLI / Gemini vision reads exact seconds
+              const tsLabel = formatContactTileTimestamp(t);
+              sheetCtx.fillStyle = "rgba(2, 6, 23, 0.84)";
+              sheetCtx.fillRect(tx + 2, ty + 2, 108, 15);
+              sheetCtx.strokeStyle = "rgba(16, 185, 129, 0.75)";
+              sheetCtx.lineWidth = 1;
+              sheetCtx.strokeRect(tx + 2, ty + 2, 108, 15);
+              sheetCtx.fillStyle = "#ecfdf5";
+              sheetCtx.font = "bold 10px monospace";
+              sheetCtx.fillText(tsLabel, tx + 5, ty + 13);
+
+              currentSheetTileCount++;
+              if (currentSheetTileCount >= TILES_PER_SHEET) {
+                flushSheetCanvas();
+              }
             } catch (_) {}
           }
 
@@ -3398,6 +3445,9 @@
             onProgress(pct, `👟 正在正規化遠近雙半場步伐 (${formatTime(t)} / ${formatTime(durationSec)})...`);
             await new Promise((r) => setTimeout(r, 0));
           }
+        }
+        if (currentSheetTileCount > 0) {
+          flushSheetCanvas();
         }
       } finally {
         videoEl.muted = prevMuted;
@@ -3787,12 +3837,79 @@
         lbl.textContent = "🎧 擊球聲紋＋跑動偵測：";
         return;
       }
-      if (engineMode === "dual-audio-motion") {
+      const modeStr = String(engineMode || "");
+      if (modeStr.includes("agy") || modeStr.includes("gemini")) {
+        lbl.textContent = `🤖 AGY 視覺＋Viterbi 已鎖定 ${rallyCount} 拍：`;
+      } else if (modeStr === "dual-audio-motion") {
         lbl.textContent = `🎧 聲紋＋步伐已抓出 ${rallyCount} 拍：`;
-      } else if (engineMode === "visual-footwork") {
+      } else if (modeStr === "visual-footwork") {
         lbl.textContent = `👟 純視覺雙半場已抓出 ${rallyCount} 拍：`;
       } else {
         lbl.textContent = `⚠️ 低間歇片段（${rallyCount} 拍）：`;
+      }
+    }
+
+    function getConfiguredAgyBridgeConfig() {
+      try {
+        const params = new URLSearchParams(window.location.search || "");
+        const qBridge = (params.get("agy_bridge") || "").trim().replace(/\/+$/, "");
+        const qToken = (params.get("agy_token") || "").trim();
+        if (qBridge) {
+          localStorage.setItem("nopick_agy_bridge_url", qBridge);
+        }
+        if (qToken) {
+          localStorage.setItem("nopick_agy_bridge_token", qToken);
+        }
+        const url = (
+          window.__NOPICK_AGY_BRIDGE_URL ||
+          localStorage.getItem("nopick_agy_bridge_url") ||
+          ""
+        ).trim().replace(/\/+$/, "");
+        const token = (
+          window.__NOPICK_AGY_BRIDGE_TOKEN ||
+          localStorage.getItem("nopick_agy_bridge_token") ||
+          ""
+        ).trim();
+        return { url, token };
+      } catch (_) {
+        return { url: "", token: "" };
+      }
+    }
+
+    function applyCloudAnalyzedRalliesToWorkspace(rawRallies, clientDetectedRallies, engineName) {
+      if (!Array.isArray(rawRallies) || rawRallies.length < 1) return;
+      RALLIES = rawRallies.map((item, i) => {
+        const clientRef = Array.isArray(clientDetectedRallies) ? clientDetectedRallies[i] : null;
+        const w = item.winner === "far" ? "far" : "near";
+        const sVal = Number(item.start);
+        const eVal = Number(item.end);
+        return {
+          rally: i + 1,
+          start: sVal,
+          end: eVal,
+          firstHitTime: Number.isFinite(item.firstHitTime)
+            ? Number(item.firstHitTime)
+            : (clientRef && Number.isFinite(clientRef.firstHitTime) ? clientRef.firstHitTime : sVal + 0.6),
+          lastHitTime: Number.isFinite(item.lastHitTime)
+            ? Number(item.lastHitTime)
+            : (clientRef && Number.isFinite(clientRef.lastHitTime) ? clientRef.lastHitTime : Math.max(sVal + 0.6, eVal - 1.1)),
+          hitCount: Number(item.hitCount ?? (clientRef ? clientRef.hitCount : 0) ?? 0),
+          winner: w,
+          obsHandoff: item.obsHandoff === "far" || item.obsHandoff === "near" ? item.obsHandoff : w,
+          obsEvenBox: typeof item.obsEvenBox === "boolean" ? item.obsEvenBox : undefined,
+          obsWinNearProb: typeof item.obsWinNearProb === "number"
+            ? item.obsWinNearProb
+            : (clientRef && typeof clientRef.obsWinNearProb === "number" ? clientRef.obsWinNearProb : (w === "near" ? 0.68 : 0.32)),
+          userLockedWinner: Boolean(item.userLockedWinner || (clientRef && clientRef.userLockedWinner)),
+          note: item.note || `第 ${i + 1} 拍`,
+          lowConfidence: Boolean(item.lowConfidence ?? (clientRef && clientRef.lowConfidence))
+        };
+      });
+      matchStartNear = 0;
+      matchStartFar = 0;
+      populatePhysicalObservationsFromWinners(RALLIES, 0, 0);
+      if (engineName) {
+        updateCutEngineLabelUI(engineName, RALLIES.length);
       }
     }
 
@@ -4028,35 +4145,7 @@
         }
 
         if (Array.isArray(data.rallies) && data.rallies.length >= 1) {
-          RALLIES = data.rallies.map((item, i) => {
-            const clientRef = Array.isArray(clientDetectedRallies) ? clientDetectedRallies[i] : null;
-            const w = item.winner === "far" ? "far" : "near";
-            const sVal = Number(item.start);
-            const eVal = Number(item.end);
-            return {
-              rally: i + 1,
-              start: sVal,
-              end: eVal,
-              firstHitTime: Number.isFinite(item.firstHitTime)
-                ? Number(item.firstHitTime)
-                : (clientRef && Number.isFinite(clientRef.firstHitTime) ? clientRef.firstHitTime : sVal + 0.6),
-              lastHitTime: Number.isFinite(item.lastHitTime)
-                ? Number(item.lastHitTime)
-                : (clientRef && Number.isFinite(clientRef.lastHitTime) ? clientRef.lastHitTime : Math.max(sVal + 0.6, eVal - 1.1)),
-              hitCount: Number(item.hitCount ?? (clientRef ? clientRef.hitCount : 0) ?? 0),
-              winner: w,
-              obsHandoff: w,
-              obsWinNearProb: typeof item.obsWinNearProb === "number"
-                ? item.obsWinNearProb
-                : (clientRef && typeof clientRef.obsWinNearProb === "number" ? clientRef.obsWinNearProb : (w === "near" ? 0.68 : 0.32)),
-              userLockedWinner: Boolean(item.userLockedWinner || (clientRef && clientRef.userLockedWinner)),
-              note: item.note || `第 ${i + 1} 拍`,
-              lowConfidence: Boolean(item.lowConfidence ?? (clientRef && clientRef.lowConfidence))
-            };
-          });
-          matchStartNear = 0;
-          matchStartFar = 0;
-          populatePhysicalObservationsFromWinners(RALLIES, 0, 0);
+          applyCloudAnalyzedRalliesToWorkspace(data.rallies, clientDetectedRallies, data.engine);
         }
         if (typeof data.deadTimeSavedSec === "number") {
           const mins = String(Math.floor(data.deadTimeSavedSec / 60)).padStart(2, "0");
@@ -4082,7 +4171,43 @@
         renderAll();
         return data;
       } catch (_) {
-        // Static GitHub Pages fallback: keep exact browser-detected RALLIES and update local quota counter
+        // Static GitHub Pages fallback:
+        // 1. If a Remote AGY CLI Bridge URL is configured (via ?agy_bridge=... or localStorage), call it directly!
+        const agyCfg = getConfiguredAgyBridgeConfig();
+        let agyEngineUsed = null;
+        if (agyCfg.url) {
+          try {
+            const bridgeHeaders = { "Content-Type": "application/json" };
+            if (agyCfg.token) bridgeHeaders.Authorization = `Bearer ${agyCfg.token}`;
+            const bResp = await fetch(`${agyCfg.url}/analyze`, {
+              method: "POST",
+              headers: bridgeHeaders,
+              body: JSON.stringify({
+                videoName,
+                durationSec: Number(durationSec),
+                contactFrames,
+                candidateRallies: clientDetectedRallies,
+                audioPeaks
+              })
+            });
+            if (bResp.ok) {
+              const bData = await bResp.json();
+              if (bData && bData.ok && Array.isArray(bData.rallies) && bData.rallies.length >= 1) {
+                agyEngineUsed = "remote-agy-cli+viterbi-5tuple";
+                applyCloudAnalyzedRalliesToWorkspace(bData.rallies, clientDetectedRallies, agyEngineUsed);
+                recomputeScores();
+                if (hasLocalVideoLoaded && RALLIES.length > 0) {
+                  document.getElementById("anchorNear").value = RALLIES[RALLIES.length - 1].nearAfter;
+                  document.getElementById("anchorFar").value = RALLIES[RALLIES.length - 1].farAfter;
+                }
+                syncDynamicMatchKpis();
+                renderAll();
+              }
+            }
+          } catch (_) {}
+        }
+
+        // 2. Update local daily quota counter
         try {
           const todayTw = getClientTaiwanDateStr();
           const rawLocal = localStorage.getItem("nopick_tw_daily_quota_v1");
@@ -4100,7 +4225,7 @@
           }
         } catch (_) {}
         runFiveTupleViterbiSolver();
-        return { ok: true, engine: "local-dual-dsp-viterbi" };
+        return { ok: true, engine: agyEngineUsed || "local-dual-dsp-viterbi" };
       }
     }
 
